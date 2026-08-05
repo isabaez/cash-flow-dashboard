@@ -1,0 +1,31 @@
+@use 'variables' as *;
+
+@mixin card {
+	background: $color-surface;
+	border: 1px solid $color-border;
+	border-radius: $radius;
+	box-shadow: $shadow;
+	padding: $space-lg;
+}
+
+@mixin button-base {
+	display: inline-flex;
+	align-items: center;
+	gap: $space-xs;
+	padding: $space-sm $space-md;
+	border: none;
+	border-radius: $radius;
+	font-size: $text-sm;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background-color 120ms ease;
+}
+
+@mixin visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+}

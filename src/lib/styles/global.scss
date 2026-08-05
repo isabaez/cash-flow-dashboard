@@ -1,0 +1,125 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	font-family: $font-body;
+	font-size: $text-base;
+	color: $color-text;
+	background: $color-bg;
+}
+
+h1,
+h2,
+h3 {
+	margin: 0 0 $space-md;
+	line-height: 1.2;
+}
+
+// --- Shared BEM blocks -----------------------------------------------------
+
+.button {
+	@include button-base;
+	background: $color-primary;
+	color: #fff;
+
+	&:hover {
+		background: $color-primary-hover;
+	}
+
+	&--danger {
+		background: $color-danger;
+
+		&:hover {
+			background: #b91c1c;
+		}
+	}
+
+	&--ghost {
+		background: transparent;
+		color: $color-text;
+		border: 1px solid $color-border;
+
+		&:hover {
+			background: $color-bg;
+		}
+	}
+}
+
+.card {
+	@include card;
+}
+
+.field {
+	display: flex;
+	flex-direction: column;
+	gap: $space-xs;
+	margin-bottom: $space-md;
+
+	&__label {
+		font-size: $text-sm;
+		font-weight: 500;
+		color: $color-text-muted;
+	}
+
+	&__input {
+		padding: $space-sm;
+		border: 1px solid $color-border;
+		border-radius: $radius;
+		font-size: $text-base;
+		font-family: inherit;
+
+		&:focus {
+			outline: 2px solid $color-primary;
+			outline-offset: -1px;
+		}
+	}
+}
+
+.table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: $text-sm;
+
+	&__head {
+		text-align: left;
+		color: $color-text-muted;
+		font-weight: 500;
+	}
+
+	th,
+	td {
+		padding: $space-sm $space-md;
+		border-bottom: 1px solid $color-border;
+	}
+
+	&__cell--number {
+		text-align: right;
+		font-family: $font-mono;
+	}
+}
+
+.empty-state {
+	padding: $space-xl;
+	text-align: center;
+	color: $color-text-muted;
+}
+
+// Page title row with a trailing action button (e.g. "Add …")
+.page-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: $space-md;
+	margin-bottom: $space-md;
+
+	h1 {
+		margin-bottom: 0;
+	}
+}
