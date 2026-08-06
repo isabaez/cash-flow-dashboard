@@ -1,48 +1,72 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import Modal from '$lib/components/Modal.svelte';
+	import FilterBar from '$lib/components/FilterBar.svelte';
+	import MultiSelect from '$lib/components/MultiSelect.svelte';
+	import CategoryTag from '$lib/components/CategoryTag.svelte';
 	import { formatCents } from '$lib/money';
+	import { formatDate } from '$lib/date';
+	import { applyCategoryFilters } from '$lib/filters';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
 	type Expense = (typeof data.expenses)[number];
+	type Category = (typeof data.categories)[number];
+
+	// Category objects for the currently-applied AND filter, in applied order.
+	const appliedCategories = $derived(
+		data.filters.categoryIds
+			.map((id) => data.categories.find((c) => c.id === id))
+			.filter((c): c is Category => c != null)
+	);
+
+	function addCategoryFilter(id: number) {
+		if (!data.filters.categoryIds.includes(id)) {
+			applyCategoryFilters(page.url, [...data.filters.categoryIds, id]);
+		}
+	}
+
+	function removeCategoryFilter(id: number) {
+		applyCategoryFilters(
+			page.url,
+			data.filters.categoryIds.filter((c) => c !== id)
+		);
+	}
 
 	// Whether the "add expense" modal is open.
 	let showAddModal = $state(false);
-	// Which expense's income-split panel is expanded.
-	let expandedId = $state<number | null>(null);
-	// Which expense is being edited inline.
-	let editingId = $state<number | null>(null);
+	// Expense being edited in the edit modal.
+	let editing = $state<Expense | null>(null);
+	let showEditModal = $state(false);
+	// Expense being duplicated in the duplicate modal.
+	let duplicating = $state<Expense | null>(null);
+	let showDuplicateModal = $state(false);
 	// Which expense is pending delete confirmation.
 	let deletingId = $state<number | null>(null);
+	// Which expense's detail panel is expanded.
+	let expandedId = $state<number | null>(null);
 
 	function toggleExpanded(id: number) {
 		expandedId = expandedId === id ? null : id;
 	}
 
-	/**
-	 * Split an expense across its income streams in proportion to each stream's
-	 * income amount. The rounding remainder goes to the last stream so the shares
-	 * sum exactly to the expense amount. Falls back to an equal split if the
-	 * selected streams have no income.
-	 */
-	function streamSplit(expense: Expense): { title: string; shareCents: number }[] {
-		const links = expense.incomeStreamLinks;
-		const total = links.reduce((sum, l) => sum + l.incomeStream.amountCents, 0);
-		let allocated = 0;
-		return links.map((l, i) => {
-			let shareCents: number;
-			if (i === links.length - 1) {
-				shareCents = expense.amountCents - allocated;
-			} else if (total > 0) {
-				shareCents = Math.round((expense.amountCents * l.incomeStream.amountCents) / total);
-			} else {
-				shareCents = Math.round(expense.amountCents / links.length);
-			}
-			allocated += shareCents;
-			return { title: l.incomeStream.title, shareCents };
-		});
+	// A row is only expandable when it has details worth revealing.
+	function hasDetails(expense: Expense): boolean {
+		return expense.fundWithdrawals.length > 0 || !!expense.notes;
+	}
+
+	function openEdit(expense: Expense) {
+		editing = expense;
+		deletingId = null;
+		showEditModal = true;
+	}
+
+	function openDuplicate(expense: Expense) {
+		duplicating = expense;
+		deletingId = null;
+		showDuplicateModal = true;
 	}
 
 	function dollars(cents: number): string {
@@ -54,6 +78,28 @@
 	<h1>Expenses</h1>
 	<button class="button" type="button" onclick={() => (showAddModal = true)}>Add expense</button>
 </div>
+
+<FilterBar
+	months={data.availableMonths}
+	years={data.availableYears}
+	month={data.filters.month}
+	year={data.filters.year}
+	categories={data.categories}
+	categoryIds={data.filters.categoryIds}
+/>
+
+{#if appliedCategories.length > 0}
+	<div class="applied-filters">
+		<span class="applied-filters__label">Applied Filters:</span>
+		{#each appliedCategories as category (category.id)}
+			<CategoryTag
+				name={category.name}
+				color={category.color}
+				onremove={() => removeCategoryFilter(category.id)}
+			/>
+		{/each}
+	</div>
+{/if}
 
 {#if form?.error}
 	<p class="form-error">{form.error}</p>
@@ -96,49 +142,29 @@
 		</div>
 	</div>
 
-	<fieldset class="picker">
-		<legend class="field__label">Category (optional)</legend>
-		<div class="picker__options">
-			<label class="picker__option">
-				<input type="radio" name="categoryId" value="" checked={!expense?.categoryId} />
-				None
-			</label>
-			{#each data.categories as category}
-				<label class="picker__option">
-					<input
-						type="radio"
-						name="categoryId"
-						value={category.id}
-						checked={expense?.categoryId === category.id}
-					/>
-					{category.name}
-				</label>
-			{/each}
-		</div>
-	</fieldset>
+	<div class="field">
+		<span class="field__label" id="{idPrefix}-categories-label">Categories</span>
+		<MultiSelect
+			options={data.categories}
+			name="categoryId"
+			selected={expense ? expense.categoryLinks.map((l) => l.categoryId) : []}
+			label="Categories"
+			placeholder="No categories"
+		/>
+	</div>
 
-	<fieldset class="picker">
-		<legend class="field__label">Apply to income streams</legend>
-		{#if data.streams.length === 0}
-			<p class="picker__empty">No income streams yet — add them on the Income page.</p>
-		{:else}
-			<div class="picker__options">
-				{#each data.streams as stream}
-					<label class="picker__option">
-						<input
-							type="checkbox"
-							name="incomeStreamId"
-							value={stream.id}
-							checked={expense
-								? expense.incomeStreamLinks.some((l) => l.incomeStreamId === stream.id)
-								: true}
-						/>
-						{stream.title}
-					</label>
-				{/each}
-			</div>
-		{/if}
-	</fieldset>
+	<div class="field">
+		<label class="field__label" for="{idPrefix}-fund">Pay from fund (optional)</label>
+		<select class="field__input" id="{idPrefix}-fund" name="fundId">
+			<option value="">None</option>
+			{#each data.funds as fund}
+				<option value={fund.id} selected={expense?.fundWithdrawals[0]?.fundId === fund.id}>
+					{fund.name}
+				</option>
+			{/each}
+		</select>
+		<span class="field__hint">Records a matching withdrawal in the fund's ledger.</span>
+	</div>
 
 	<div class="field">
 		<label class="field__label" for="{idPrefix}-notes">Notes (optional)</label>
@@ -155,24 +181,99 @@
 	{#if form?.error}
 		<p class="form-error">{form.error}</p>
 	{/if}
-	<form
-		class="expense-form"
-		method="POST"
-		action="?/create"
-		use:enhance={() =>
-			async ({ result, update }) => {
-				await update();
-				if (result.type === 'success') showAddModal = false;
-			}}
-	>
-		{@render expenseFields(null, 'new')}
-		<button class="button" type="submit">Add expense</button>
-	</form>
+	{#key showAddModal}
+		<form
+			class="expense-form"
+			method="POST"
+			action="?/create"
+			use:enhance={() =>
+				async ({ result, update }) => {
+					await update();
+					if (result.type === 'success') showAddModal = false;
+				}}
+		>
+			{@render expenseFields(null, 'new')}
+			<button class="button" type="submit">Add expense</button>
+		</form>
+	{/key}
+</Modal>
+
+<Modal bind:open={showEditModal} title="Edit expense">
+	{#if form?.error}
+		<p class="form-error">{form.error}</p>
+	{/if}
+	<!-- Key on the open flag too: the post-save form reset empties the DOM inputs,
+	     so reopening the same expense must remount the form with fresh values. -->
+	{#key `${showEditModal}-${editing?.id}`}
+		{#if editing}
+			<form
+				class="expense-form"
+				method="POST"
+				action="?/update"
+				use:enhance={() =>
+					async ({ result, update }) => {
+						await update();
+						if (result.type === 'success') showEditModal = false;
+					}}
+			>
+				<input type="hidden" name="id" value={editing.id} />
+				{@render expenseFields(editing, `edit-${editing.id}`)}
+				<button class="button" type="submit">Save changes</button>
+			</form>
+		{/if}
+	{/key}
+</Modal>
+
+<Modal bind:open={showDuplicateModal} title="Duplicate expense">
+	{#if form?.error}
+		<p class="form-error">{form.error}</p>
+	{/if}
+	{#key showDuplicateModal}
+	{#if duplicating}
+		<p class="duplicate-hint">
+			Copies “{duplicating.title}” ({formatCents(duplicating.amountCents)})
+			{#if duplicating.categoryLinks.length > 0}
+				with {duplicating.categoryLinks.length}
+				{duplicating.categoryLinks.length === 1 ? 'category' : 'categories'}
+			{/if}
+			to a new date.
+		</p>
+		<form
+			method="POST"
+			action="?/duplicate"
+			use:enhance={() =>
+				async ({ result, update }) => {
+					await update();
+					if (result.type === 'success') showDuplicateModal = false;
+				}}
+		>
+			<input type="hidden" name="id" value={duplicating.id} />
+			<div class="field">
+				<label class="field__label" for="duplicate-date">New date</label>
+				<input
+					class="field__input"
+					id="duplicate-date"
+					name="date"
+					type="date"
+					required
+					value={data.today}
+				/>
+			</div>
+			<button class="button" type="submit">Duplicate</button>
+		</form>
+	{/if}
+	{/key}
 </Modal>
 
 <div class="card">
 	{#if data.expenses.length === 0}
-		<p class="empty-state">No expenses yet.</p>
+		<p class="empty-state">
+			{#if data.filters.month || data.filters.year || data.filters.categoryIds.length > 0}
+				No expenses match the current filters.
+			{:else}
+				No expenses yet.
+			{/if}
+		</p>
 	{:else}
 		<table class="table">
 			<thead>
@@ -180,130 +281,108 @@
 					<th class="table__cell--caret"></th>
 					<th>Date</th>
 					<th>Title</th>
-					<th>Category</th>
+					<th>Categories</th>
 					<th class="table__cell--number">Amount</th>
 					<th></th>
 				</tr>
 			</thead>
 			<tbody>
 				{#each data.expenses as expense (expense.id)}
-					{#if editingId === expense.id}
-						<tr>
-							<td colspan="6">
-								<form
-									class="expense-form"
-									method="POST"
-									action="?/update"
-									use:enhance={() =>
-										({ update }) => {
-											editingId = null;
-											update();
-										}}
-								>
-									<input type="hidden" name="id" value={expense.id} />
-									{@render expenseFields(expense, `edit-${expense.id}`)}
-									<div class="inline-form">
-										<button class="button" type="submit">Save</button>
-										<button
-											class="button button--ghost"
-											type="button"
-											onclick={() => (editingId = null)}
-										>
-											Cancel
-										</button>
-									</div>
-								</form>
-							</td>
-						</tr>
-					{:else}
-						<tr>
-							<td class="table__cell--caret">
+					<tr>
+						<td class="table__cell--caret">
+							{#if hasDetails(expense)}
 								<button
 									class="caret"
 									class:caret--open={expandedId === expense.id}
 									type="button"
 									aria-expanded={expandedId === expense.id}
-									aria-label="Toggle income split for {expense.title}"
+									aria-label="Toggle details for {expense.title}"
 									onclick={() => toggleExpanded(expense.id)}
 								>
 									▸
 								</button>
-							</td>
-							<td>{expense.date}</td>
-							<td>{expense.title}</td>
-							<td>{expense.category?.name ?? '—'}</td>
-							<td class="table__cell--number">{formatCents(expense.amountCents)}</td>
-							<td>
-								{#if deletingId === expense.id}
-									<form
-										class="inline-form"
-										method="POST"
-										action="?/delete"
-										use:enhance={() =>
-											({ update }) => {
-												deletingId = null;
-												update();
-											}}
+							{/if}
+						</td>
+						<td>{formatDate(expense.date)}</td>
+						<td>{expense.title}</td>
+						<td>
+							{#if expense.categoryLinks.length > 0}
+								<div class="category-tags">
+									{#each expense.categoryLinks as link (link.category.id)}
+										<CategoryTag
+											name={link.category.name}
+											color={link.category.color}
+											onclick={() => addCategoryFilter(link.category.id)}
+										/>
+									{/each}
+								</div>
+							{:else}
+								—
+							{/if}
+						</td>
+						<td class="table__cell--number">{formatCents(expense.amountCents)}</td>
+						<td>
+							{#if deletingId === expense.id}
+								<form
+									class="inline-form"
+									method="POST"
+									action="?/delete"
+									use:enhance={() =>
+										({ update }) => {
+											deletingId = null;
+											update();
+										}}
+								>
+									<input type="hidden" name="id" value={expense.id} />
+									<button class="link-action link-action--danger" type="submit">Confirm</button>
+									<button class="link-action" type="button" onclick={() => (deletingId = null)}>
+										Cancel
+									</button>
+								</form>
+							{:else}
+								<div class="inline-form">
+									<button class="link-action" type="button" onclick={() => openEdit(expense)}>
+										Edit
+									</button>
+									<button class="link-action" type="button" onclick={() => openDuplicate(expense)}>
+										Duplicate
+									</button>
+									<button
+										class="link-action link-action--danger"
+										type="button"
+										onclick={() => (deletingId = expense.id)}
 									>
-										<input type="hidden" name="id" value={expense.id} />
-										<button class="button button--danger" type="submit">Confirm</button>
-										<button
-											class="button button--ghost"
-											type="button"
-											onclick={() => (deletingId = null)}
-										>
-											Cancel
-										</button>
-									</form>
-								{:else}
-									<div class="inline-form">
-										<button
-											class="button button--ghost"
-											type="button"
-											onclick={() => {
-												editingId = expense.id;
-												deletingId = null;
-											}}
-										>
-											Edit
-										</button>
-										<button
-											class="button button--ghost"
-											type="button"
-											onclick={() => (deletingId = expense.id)}
-										>
-											Delete
-										</button>
-									</div>
-								{/if}
+										Delete
+									</button>
+								</div>
+							{/if}
+						</td>
+					</tr>
+
+					{#if expandedId === expense.id && hasDetails(expense)}
+						<tr class="detail-row">
+							<td colspan="6">
+								<dl class="detail">
+									{#if expense.fundWithdrawals[0]}
+										<div class="detail__item">
+											<dt class="detail__label">Paid from</dt>
+											<dd class="detail__value">
+												{expense.fundWithdrawals[0].fund.name}
+												<span class="detail__muted">
+													(withdrawal of {formatCents(expense.fundWithdrawals[0].amountCents)})
+												</span>
+											</dd>
+										</div>
+									{/if}
+									{#if expense.notes}
+										<div class="detail__item detail__item--wide">
+											<dt class="detail__label">Notes</dt>
+											<dd class="detail__value">{expense.notes}</dd>
+										</div>
+									{/if}
+								</dl>
 							</td>
 						</tr>
-
-						{#if expandedId === expense.id}
-							<tr class="detail-row">
-								<td colspan="6">
-									<div class="split">
-										<h3 class="split__title">Income split</h3>
-										{#if expense.incomeStreamLinks.length === 0}
-											<p class="split__empty">Not applied to any income streams.</p>
-										{:else}
-											<table class="table split__list">
-												<tbody>
-													{#each streamSplit(expense) as part}
-														<tr>
-															<td>{part.title}</td>
-															<td class="table__cell--number">
-																{formatCents(part.shareCents)}
-															</td>
-														</tr>
-													{/each}
-												</tbody>
-											</table>
-										{/if}
-									</div>
-								</td>
-							</tr>
-						{/if}
 					{/if}
 				{/each}
 			</tbody>
@@ -325,37 +404,21 @@
 		}
 	}
 
-	.picker {
-		border: 1px solid $color-border;
-		border-radius: $radius;
-		padding: $space-sm $space-md $space-md;
-		margin: 0 0 $space-md;
-
-		&__options {
-			display: flex;
-			flex-wrap: wrap;
-			gap: $space-sm $space-lg;
-			margin-top: $space-sm;
-		}
-
-		&__option {
-			display: flex;
-			align-items: center;
-			gap: $space-xs;
-			font-size: $text-sm;
-			cursor: pointer;
-		}
-
-		&__empty {
-			color: $color-text-muted;
-			font-size: $text-sm;
-			margin: $space-xs 0 0;
-		}
-	}
-
 	textarea.field__input {
 		resize: vertical;
 		min-height: 4rem;
+	}
+
+	.inline-form {
+		display: flex;
+		align-items: center;
+		gap: $space-md;
+	}
+
+	.category-tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: $space-xs;
 	}
 
 	.table__cell--caret {
@@ -383,29 +446,50 @@
 		padding: $space-md $space-lg;
 	}
 
-	.split {
-		&__title {
-			font-size: $text-base;
-			margin-bottom: $space-sm;
+	.detail {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+		gap: $space-md $space-lg;
+		margin: 0;
+
+		&__item--wide {
+			grid-column: 1 / -1;
 		}
 
-		&__empty {
-			color: $color-text-muted;
+		&__label {
 			font-size: $text-sm;
-			margin: 0;
+			color: $color-text-muted;
+			margin-bottom: $space-xs;
 		}
 
-		&__list {
-			max-width: 420px;
-			background: $color-surface;
-			border-radius: $radius;
+		&__value {
+			margin: 0;
+			font-size: $text-sm;
+		}
+
+		&__muted {
+			color: $color-text-muted;
 		}
 	}
 
-	.inline-form {
+	.applied-filters {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		gap: $space-sm;
+		margin-bottom: $space-md;
+
+		&__label {
+			font-size: $text-sm;
+			font-weight: 500;
+			color: $color-text-muted;
+		}
+	}
+
+	.duplicate-hint {
+		margin: 0 0 $space-md;
+		color: $color-text-muted;
+		font-size: $text-sm;
 	}
 
 	.form-error {
