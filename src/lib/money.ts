@@ -15,6 +15,11 @@ export function formatBps(bps: number): string {
 	return `${(bps / 100).toFixed(bps % 100 === 0 ? 0 : 2)}%`;
 }
 
+/** Basis points of a base amount, rounded to cents: bpsOf(500000, 650) -> 32500 */
+export function bpsOf(baseCents: number, bps: number): number {
+	return Math.round((baseCents * bps) / 10000);
+}
+
 /** Parse a user-entered percentage, e.g. "6.5" or "6.5%" -> 650 basis points. Returns null if invalid. */
 export function parseBps(input: string): number | null {
 	const cleaned = input.replace(/[%\s]/g, '');

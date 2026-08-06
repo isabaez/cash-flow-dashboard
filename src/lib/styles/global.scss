@@ -7,6 +7,10 @@
 	box-sizing: border-box;
 }
 
+:root {
+	color-scheme: dark;
+}
+
 body {
 	margin: 0;
 	font-family: $font-body;
@@ -22,12 +26,19 @@ h3 {
 	line-height: 1.2;
 }
 
+// Keyboard focus is always visible; mouse clicks don't draw rings.
+:focus-visible {
+	outline: 2px solid $color-primary;
+	outline-offset: 2px;
+	border-radius: 4px;
+}
+
 // --- Shared BEM blocks -----------------------------------------------------
 
 .button {
 	@include button-base;
 	background: $color-primary;
-	color: #fff;
+	color: $color-on-primary;
 
 	&:hover {
 		background: $color-primary-hover;
@@ -35,9 +46,10 @@ h3 {
 
 	&--danger {
 		background: $color-danger;
+		color: #fff;
 
 		&:hover {
-			background: #b91c1c;
+			background: $color-danger-hover;
 		}
 	}
 
@@ -47,13 +59,39 @@ h3 {
 		border: 1px solid $color-border;
 
 		&:hover {
-			background: $color-bg;
+			background: $color-surface-raised;
+		}
+	}
+}
+
+// Compact underlined-link action, for inline row actions (Edit / Duplicate / Delete).
+.link-action {
+	background: none;
+	border: none;
+	padding: 0;
+	font: inherit;
+	font-size: $text-sm;
+	color: #c2c8d2;
+	text-decoration: underline;
+	cursor: pointer;
+
+	&:hover {
+		color: $color-text;
+	}
+
+	&--danger {
+		color: #d3787c;
+
+		&:hover {
+			color: #e79094;
 		}
 	}
 }
 
 .card {
 	@include card;
+	// Wide tables scroll inside the card instead of the page on small screens.
+	overflow-x: auto;
 }
 
 .field {
@@ -74,12 +112,33 @@ h3 {
 		border-radius: $radius;
 		font-size: $text-base;
 		font-family: inherit;
+		background: $color-surface-raised;
+		color: $color-text;
 
 		&:focus {
 			outline: 2px solid $color-primary;
 			outline-offset: -1px;
 		}
+
+		&::placeholder {
+			color: $color-text-muted;
+		}
 	}
+
+	&__hint {
+		font-size: $text-sm;
+		color: $color-text-muted;
+	}
+}
+
+// Styled native select — keeps native keyboard/screen-reader semantics.
+select.field__input {
+	appearance: none;
+	padding-right: $space-xl;
+	background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%2397a0b3' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right $space-md center;
+	cursor: pointer;
 }
 
 .table {

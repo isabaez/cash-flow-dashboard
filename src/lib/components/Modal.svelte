@@ -20,9 +20,23 @@
 	function handleClick(event: MouseEvent) {
 		if (event.target === dialog) open = false;
 	}
+
+	// Explicit Escape fallback alongside the native <dialog> cancel behavior.
+	function handleKeydown(event: KeyboardEvent) {
+		if (event.key === 'Escape' && open) {
+			event.preventDefault();
+			open = false;
+		}
+	}
 </script>
 
-<dialog bind:this={dialog} class="modal" onclose={() => (open = false)} onclick={handleClick}>
+<dialog
+	bind:this={dialog}
+	class="modal"
+	onclose={() => (open = false)}
+	onclick={handleClick}
+	onkeydown={handleKeydown}
+>
 	<div class="modal__panel">
 		<div class="modal__header">
 			<h2 class="modal__title">{title}</h2>
@@ -38,16 +52,17 @@
 	@use 'variables' as *;
 
 	.modal {
-		border: none;
+		border: 1px solid $color-border;
 		border-radius: $radius;
 		padding: 0;
 		width: min(620px, calc(100vw - #{$space-lg} * 2));
 		background: $color-surface;
 		color: $color-text;
-		box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
 
 		&::backdrop {
-			background: rgba(0, 0, 0, 0.4);
+			background: rgba(4, 6, 10, 0.65);
+			backdrop-filter: blur(4px);
 		}
 
 		&__panel {

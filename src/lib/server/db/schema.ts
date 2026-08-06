@@ -1,64 +1,114 @@
-import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, integer, text, index, unique } from 'drizzle-orm/sqlite-core';
 import { relations, sql } from 'drizzle-orm';
 
 /**
  * Money is stored as integer cents to avoid floating-point errors.
+ * Percentages are stored as basis points (650 = 6.5%).
  * Dates are stored as ISO-8601 strings (YYYY-MM-DD).
+ *
+ * Net pay is computed with a two-pass rule so a "% of net" value is never
+ * circular:
+ *   Pass 1: netBase = gross − fixed deductions − gross-percent deductions
+ *   Pass 2: net = netBase − net-percent deductions (applied to netBase)
+ * Fund allocations resolve against gross or the final net; they split net
+ * rather than reduce it, so they carry no circularity.
+ *
+ * Deductions and allocations store their resolved cent amount alongside the
+ * rule that produced it. Resolved values are recomputed transactionally on
+ * every paycheck mutation, so analysis queries are plain dated SUMs.
  */
 
 // ---------------------------------------------------------------------------
 // Income
 // ---------------------------------------------------------------------------
 
-export const incomeStreams = sqliteTable('income_streams', {
-	id: integer('id').primaryKey({ autoIncrement: true }),
-	title: text('title').notNull(),
-	/** Gross amount per month, in cents */
-	amountCents: integer('amount_cents').notNull(),
-	/** 'joint' | 'me' | 'spouse' — whose income this is */
-	owner: text('owner').notNull().default('joint'),
-	createdAt: text('created_at')
-		.notNull()
-		.default(sql`(date('now'))`)
-});
+export const paychecks = sqliteTable(
+	'paychecks',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		/** ISO date the paycheck was received (YYYY-MM-DD) */
+		date: text('date').notNull(),
+		title: text('title').notNull(),
+		/** Gross amount in cents */
+		grossCents: integer('gross_cents').notNull(),
+		/** 'me' | 'spouse' — whose paycheck this is */
+		owner: text('owner').notNull().default('me'),
+		notes: text('notes'),
+		createdAt: text('created_at')
+			.notNull()
+			.default(sql`(date('now'))`)
+	},
+	(t) => ({ dateIdx: index('paychecks_date_idx').on(t.date) })
+);
 
-/** Deductions applied to a single income stream (taxes, 401k, insurance...) */
-export const deductions = sqliteTable('deductions', {
+/** Deductions applied to a single paycheck (taxes, 401k, insurance...) */
+export const paycheckDeductions = sqliteTable('paycheck_deductions', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
-	incomeStreamId: integer('income_stream_id')
+	paycheckId: integer('paycheck_id')
 		.notNull()
-		.references(() => incomeStreams.id, { onDelete: 'cascade' }),
+		.references(() => paychecks.id, { onDelete: 'cascade' }),
 	title: text('title').notNull(),
-	/** 'fixed' (cents) or 'percent' (basis points, e.g. 650 = 6.5%) */
+	/** 'fixed' (cents) or 'percent' (basis points) */
 	kind: text('kind').notNull().default('fixed'),
-	value: integer('value').notNull()
+	/** 'gross' | 'net' — which base a percent applies to; ignored for fixed */
+	basis: text('basis').notNull().default('gross'),
+	value: integer('value').notNull(),
+	/** Cent amount this rule resolved to, per the two-pass rule */
+	resolvedCents: integer('resolved_cents').notNull()
 });
 
 // ---------------------------------------------------------------------------
-// Funds — buckets that net income is funneled into
+// Funds — buckets that paycheck money is funneled into
 // ---------------------------------------------------------------------------
 
 export const funds = sqliteTable('funds', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
 	name: text('name').notNull().unique(),
 	description: text('description'),
-	/** Marks funds like "Savings" whose contributions accumulate over time */
-	isSavings: integer('is_savings', { mode: 'boolean' }).notNull().default(false)
+	/** Marks funds like "401k" whose contributions accumulate over time */
+	isSavings: integer('is_savings', { mode: 'boolean' }).notNull().default(false),
+	/** Starting balance in cents from before tracking began */
+	initialCents: integer('initial_cents').notNull().default(0)
 });
 
-/** How each income stream's net amount is split across funds */
+/** A portion of one paycheck funneled into a fund (a contribution) */
 export const allocations = sqliteTable('allocations', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
-	incomeStreamId: integer('income_stream_id')
+	paycheckId: integer('paycheck_id')
 		.notNull()
-		.references(() => incomeStreams.id, { onDelete: 'cascade' }),
+		.references(() => paychecks.id, { onDelete: 'cascade' }),
 	fundId: integer('fund_id')
 		.notNull()
 		.references(() => funds.id, { onDelete: 'cascade' }),
-	/** 'fixed' (cents) or 'percent' (basis points) of the stream's net income */
+	/** 'fixed' (cents) or 'percent' (basis points) */
 	kind: text('kind').notNull().default('percent'),
-	value: integer('value').notNull()
+	/** 'gross' | 'net' — which base a percent applies to; ignored for fixed */
+	basis: text('basis').notNull().default('net'),
+	value: integer('value').notNull(),
+	/** Cent amount this rule resolved to */
+	resolvedCents: integer('resolved_cents').notNull()
 });
+
+/** Money taken out of a fund; not tied to any paycheck */
+export const fundWithdrawals = sqliteTable(
+	'fund_withdrawals',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		fundId: integer('fund_id')
+			.notNull()
+			.references(() => funds.id, { onDelete: 'cascade' }),
+		amountCents: integer('amount_cents').notNull(),
+		/** ISO date of the withdrawal (YYYY-MM-DD) */
+		date: text('date').notNull(),
+		notes: text('notes'),
+		/** Set when this withdrawal mirrors an expense paid from the fund; kept in sync with it */
+		expenseId: integer('expense_id').references(() => expenses.id, { onDelete: 'cascade' }),
+		createdAt: text('created_at')
+			.notNull()
+			.default(sql`(date('now'))`)
+	},
+	(t) => ({ dateIdx: index('fund_withdrawals_date_idx').on(t.date) })
+);
 
 // ---------------------------------------------------------------------------
 // Expenses
@@ -66,82 +116,89 @@ export const allocations = sqliteTable('allocations', {
 
 export const categories = sqliteTable('categories', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
-	name: text('name').notNull().unique()
+	name: text('name').notNull().unique(),
+	/** Tag color as a #RRGGBB hex string */
+	color: text('color').notNull().default('#7c9aff')
 });
 
-export const expenses = sqliteTable('expenses', {
-	id: integer('id').primaryKey({ autoIncrement: true }),
-	title: text('title').notNull(),
-	amountCents: integer('amount_cents').notNull(),
-	/** ISO date the expense occurred (YYYY-MM-DD) */
-	date: text('date').notNull(),
-	categoryId: integer('category_id').references(() => categories.id, { onDelete: 'restrict' }),
-	/** Which fund this expense draws from (nullable = unassigned) */
-	fundId: integer('fund_id').references(() => funds.id, { onDelete: 'set null' }),
-	notes: text('notes'),
-	createdAt: text('created_at')
-		.notNull()
-		.default(sql`(date('now'))`)
-});
+export const expenses = sqliteTable(
+	'expenses',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		title: text('title').notNull(),
+		amountCents: integer('amount_cents').notNull(),
+		/** ISO date the expense occurred (YYYY-MM-DD) */
+		date: text('date').notNull(),
+		notes: text('notes'),
+		createdAt: text('created_at')
+			.notNull()
+			.default(sql`(date('now'))`)
+	},
+	(t) => ({ dateIdx: index('expenses_date_idx').on(t.date) })
+);
 
-/** Join table: an expense can be applied to any number of income streams. */
-export const expenseIncomeStreams = sqliteTable('expense_income_streams', {
-	id: integer('id').primaryKey({ autoIncrement: true }),
-	expenseId: integer('expense_id')
-		.notNull()
-		.references(() => expenses.id, { onDelete: 'cascade' }),
-	incomeStreamId: integer('income_stream_id')
-		.notNull()
-		.references(() => incomeStreams.id, { onDelete: 'cascade' })
-});
+/** Join table: an expense can carry any number of categories. */
+export const expenseCategories = sqliteTable(
+	'expense_categories',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		expenseId: integer('expense_id')
+			.notNull()
+			.references(() => expenses.id, { onDelete: 'cascade' }),
+		categoryId: integer('category_id')
+			.notNull()
+			.references(() => categories.id, { onDelete: 'restrict' })
+	},
+	(t) => ({ expenseCategoryUnique: unique('expense_category_unique').on(t.expenseId, t.categoryId) })
+);
 
 // ---------------------------------------------------------------------------
 // Relations (for db.query.* relational queries)
 // ---------------------------------------------------------------------------
 
-export const incomeStreamsRelations = relations(incomeStreams, ({ many }) => ({
-	deductions: many(deductions),
-	allocations: many(allocations),
-	expenseLinks: many(expenseIncomeStreams)
+export const paychecksRelations = relations(paychecks, ({ many }) => ({
+	deductions: many(paycheckDeductions),
+	allocations: many(allocations)
 }));
 
-export const deductionsRelations = relations(deductions, ({ one }) => ({
-	incomeStream: one(incomeStreams, {
-		fields: [deductions.incomeStreamId],
-		references: [incomeStreams.id]
+export const paycheckDeductionsRelations = relations(paycheckDeductions, ({ one }) => ({
+	paycheck: one(paychecks, {
+		fields: [paycheckDeductions.paycheckId],
+		references: [paychecks.id]
 	})
 }));
 
 export const fundsRelations = relations(funds, ({ many }) => ({
 	allocations: many(allocations),
-	expenses: many(expenses)
+	withdrawals: many(fundWithdrawals)
 }));
 
 export const allocationsRelations = relations(allocations, ({ one }) => ({
-	incomeStream: one(incomeStreams, {
-		fields: [allocations.incomeStreamId],
-		references: [incomeStreams.id]
-	}),
+	paycheck: one(paychecks, { fields: [allocations.paycheckId], references: [paychecks.id] }),
 	fund: one(funds, { fields: [allocations.fundId], references: [funds.id] })
 }));
 
+export const fundWithdrawalsRelations = relations(fundWithdrawals, ({ one }) => ({
+	fund: one(funds, { fields: [fundWithdrawals.fundId], references: [funds.id] }),
+	expense: one(expenses, { fields: [fundWithdrawals.expenseId], references: [expenses.id] })
+}));
+
 export const categoriesRelations = relations(categories, ({ many }) => ({
-	expenses: many(expenses)
+	expenseLinks: many(expenseCategories)
 }));
 
-export const expensesRelations = relations(expenses, ({ one, many }) => ({
-	category: one(categories, { fields: [expenses.categoryId], references: [categories.id] }),
-	fund: one(funds, { fields: [expenses.fundId], references: [funds.id] }),
-	incomeStreamLinks: many(expenseIncomeStreams)
+export const expensesRelations = relations(expenses, ({ many }) => ({
+	categoryLinks: many(expenseCategories),
+	fundWithdrawals: many(fundWithdrawals)
 }));
 
-export const expenseIncomeStreamsRelations = relations(expenseIncomeStreams, ({ one }) => ({
+export const expenseCategoriesRelations = relations(expenseCategories, ({ one }) => ({
 	expense: one(expenses, {
-		fields: [expenseIncomeStreams.expenseId],
+		fields: [expenseCategories.expenseId],
 		references: [expenses.id]
 	}),
-	incomeStream: one(incomeStreams, {
-		fields: [expenseIncomeStreams.incomeStreamId],
-		references: [incomeStreams.id]
+	category: one(categories, {
+		fields: [expenseCategories.categoryId],
+		references: [categories.id]
 	})
 }));
