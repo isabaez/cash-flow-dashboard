@@ -71,6 +71,9 @@ in one transaction (see `src/routes/categories/+page.server.ts`).
 
 ## Pages
 
+- **Dashboard** — five overview charts via `Chart.svelte`: monthly net income vs expenses, savings
+  fund growth (cumulative, stacked per savings fund), expenses by category (current month), savings
+  rate over time, and a paycheck flow breakdown (gross split into deductions / allocations / take-home)
 - **Income** — paycheck CRUD + duplicate-to-date; expandable detail with deductions and fund
   allocations; month/year filter
 - **Expenses** — expense CRUD + duplicate-to-date; multi-category via `MultiSelect.svelte`;
@@ -89,6 +92,6 @@ in one transaction (see `src/routes/categories/+page.server.ts`).
 - [x] Funds page with withdrawal ledger and balances
 - [x] Net worth page with projection chart
 - [x] Dark theme, top-bar/drawer nav, modal forms, keyboard accessibility
-- [ ] Dashboard charts (reuse `Chart.svelte`): monthly net income vs expenses, cumulative fund
-      growth, expenses by category, income growth by owner
+- [x] Dashboard charts (reuse `Chart.svelte`): net income vs expenses, savings fund growth,
+      expenses by category, savings rate over time, paycheck flow breakdown
 - [ ] CSV export of filtered tables; text search; per-category budgets; SQLite backup
