@@ -1,18 +1,13 @@
 import { db } from '$lib/server/db';
 import { allocations, fundWithdrawals, paychecks } from '$lib/server/db/schema';
 import { eq, sql, sum } from 'drizzle-orm';
+import { nextMonth } from '$lib/date';
 import type { PageServerLoad } from './$types';
 
 /** Number of trailing months used to estimate the monthly contribution rate. */
 const TREND_WINDOW = 6;
 /** How far the projection extends, in months. */
 const PROJECTION_MONTHS = 12;
-
-/** "2026-08" -> "2026-09" */
-function nextMonth(month: string): string {
-	const [y, m] = month.split('-').map(Number);
-	return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
-}
 
 export const load: PageServerLoad = async () => {
 	const allocMonth = sql<string>`substr(${paychecks.date}, 1, 7)`;
@@ -56,11 +51,21 @@ export const load: PageServerLoad = async () => {
 		history.push({ month: currentMonth, cents: initialTotal });
 	}
 
-	// Average monthly change over the trailing window (fewer months if less history).
+	// Monthly rate used to extend the projection.
 	const last = history.at(-1);
-	const window = Math.min(TREND_WINDOW, history.length - 1);
-	const avgMonthlyCents =
-		last && window > 0 ? Math.round((last.cents - history[history.length - 1 - window].cents) / window) : 0;
+	const trendMonths = Math.min(TREND_WINDOW, history.length - 1);
+	let avgMonthlyCents = 0;
+	if (last && trendMonths > 0) {
+		// Normal case: average the change across the trailing window.
+		avgMonthlyCents = Math.round(
+			(last.cents - history[history.length - 1 - trendMonths].cents) / trendMonths
+		);
+	} else if (last) {
+		// Only one month of history — assume that month's net contribution repeats
+		// every future month, so the projection slopes forward at that rate. The first
+		// month's movement is its ending value minus the pre-tracking initial balance.
+		avgMonthlyCents = last.cents - initialTotal;
+	}
 
 	// Dashed projection, anchored at the last actual point.
 	const projection: { month: string; cents: number }[] = [];
@@ -95,7 +100,7 @@ export const load: PageServerLoad = async () => {
 		netWorthCents: last?.cents ?? 0,
 		projectedCents: last ? last.cents + avgMonthlyCents * PROJECTION_MONTHS : 0,
 		projectionMonths: PROJECTION_MONTHS,
-		trendWindow: window,
+		trendWindow: trendMonths,
 		perFund
 	};
 };

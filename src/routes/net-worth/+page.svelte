@@ -1,29 +1,11 @@
 <script lang="ts">
 	import Chart from '$lib/components/Chart.svelte';
 	import { formatCents } from '$lib/money';
+	import { monthLabel } from '$lib/date';
+	import { seriesLegend } from '$lib/chart';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
-
-	const MONTH_NAMES = [
-		'Jan',
-		'Feb',
-		'Mar',
-		'Apr',
-		'May',
-		'Jun',
-		'Jul',
-		'Aug',
-		'Sep',
-		'Oct',
-		'Nov',
-		'Dec'
-	];
-
-	function monthLabel(value: string): string {
-		const [y, m] = value.split('-');
-		return `${MONTH_NAMES[Number(m) - 1] ?? m} ${y}`;
-	}
 
 	const labels = $derived([
 		...data.history.map((p) => monthLabel(p.month)),
@@ -68,6 +50,7 @@
 		maintainAspectRatio: false,
 		interaction: { mode: 'index' as const, intersect: false },
 		plugins: {
+			legend: seriesLegend,
 			tooltip: {
 				callbacks: {
 					label: (ctx: { dataset: { label?: string }; parsed: { y: number | null } }) =>

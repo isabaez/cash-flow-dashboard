@@ -29,6 +29,21 @@
 	let checkedIds = $state<number[]>([...selected]);
 	let trigger = $state<HTMLButtonElement>();
 	let root = $state<HTMLDivElement>();
+	// Live filter text for narrowing the visible options by name.
+	let query = $state('');
+
+	const normalizedQuery = $derived(query.trim().toLowerCase());
+
+	function matchesQuery(option: { name: string }): boolean {
+		return option.name.toLowerCase().includes(normalizedQuery);
+	}
+
+	const hasMatches = $derived(options.some(matchesQuery));
+
+	// Start unfiltered each time the panel reopens.
+	$effect(() => {
+		if (!open) query = '';
+	});
 
 	const summary = $derived(
 		checkedIds.length === 0
@@ -83,8 +98,18 @@
 		{#if options.length === 0}
 			<p class="multi-select__empty">No options yet.</p>
 		{:else}
+			<input
+				class="multi-select__search field__input"
+				type="text"
+				bind:value={query}
+				placeholder="Filter…"
+				aria-label="Filter options"
+				tabindex={open ? undefined : -1}
+			/>
+			<!-- Render every option so a checked-but-filtered-out box still submits;
+			     non-matching options are hidden with CSS, not unmounted. -->
 			{#each options as option (option.id)}
-				<label class="multi-select__option">
+				<label class="multi-select__option" class:multi-select__option--hidden={!matchesQuery(option)}>
 					<input
 						type="checkbox"
 						{name}
@@ -96,6 +121,9 @@
 					{option.name}
 				</label>
 			{/each}
+			{#if !hasMatches}
+				<p class="multi-select__empty">No matches.</p>
+			{/if}
 		{/if}
 	</div>
 </div>
@@ -151,6 +179,12 @@
 			}
 		}
 
+		&__search {
+			width: 100%;
+			margin-bottom: $space-sm;
+			font-size: $text-sm;
+		}
+
 		&__option {
 			display: flex;
 			align-items: center;
@@ -162,6 +196,10 @@
 
 			&:hover {
 				background: rgba(124, 154, 255, 0.1);
+			}
+
+			&--hidden {
+				display: none;
 			}
 		}
 

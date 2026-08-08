@@ -48,6 +48,31 @@
 	// Which expense's detail panel is expanded.
 	let expandedId = $state<number | null>(null);
 
+	// Ids of expenses currently checked for the bulk-tag action.
+	let selectedIds = $state<number[]>([]);
+
+	// Drop ids that no longer exist after a filter change or data reload.
+	$effect(() => {
+		const present = new Set(data.expenses.map((e) => e.id));
+		const kept = selectedIds.filter((id) => present.has(id));
+		if (kept.length !== selectedIds.length) selectedIds = kept;
+	});
+
+	const allSelected = $derived(
+		data.expenses.length > 0 && selectedIds.length === data.expenses.length
+	);
+	const someSelected = $derived(selectedIds.length > 0 && !allSelected);
+
+	function toggleRow(id: number) {
+		selectedIds = selectedIds.includes(id)
+			? selectedIds.filter((s) => s !== id)
+			: [...selectedIds, id];
+	}
+
+	function toggleAll() {
+		selectedIds = allSelected ? [] : data.expenses.map((e) => e.id);
+	}
+
 	function toggleExpanded(id: number) {
 		expandedId = expandedId === id ? null : id;
 	}
@@ -236,7 +261,7 @@
 				with {duplicating.categoryLinks.length}
 				{duplicating.categoryLinks.length === 1 ? 'category' : 'categories'}
 			{/if}
-			to a new date.
+			— then edit the title, amount, and date below.
 		</p>
 		<form
 			method="POST"
@@ -248,6 +273,26 @@
 				}}
 		>
 			<input type="hidden" name="id" value={duplicating.id} />
+			<div class="field">
+				<label class="field__label" for="duplicate-title">Title</label>
+				<input
+					class="field__input"
+					id="duplicate-title"
+					name="title"
+					required
+					value={duplicating.title}
+				/>
+			</div>
+			<div class="field">
+				<label class="field__label" for="duplicate-amount">Amount</label>
+				<input
+					class="field__input"
+					id="duplicate-amount"
+					name="amount"
+					required
+					value={dollars(duplicating.amountCents)}
+				/>
+			</div>
 			<div class="field">
 				<label class="field__label" for="duplicate-date">New date</label>
 				<input
@@ -265,6 +310,35 @@
 	{/key}
 </Modal>
 
+{#if selectedIds.length > 0}
+	<form
+		class="bulk-toolbar"
+		method="POST"
+		action="?/applyCategories"
+		use:enhance={() =>
+			async ({ result, update }) => {
+				await update();
+				if (result.type === 'success') selectedIds = [];
+			}}
+	>
+		{#each selectedIds as id (id)}
+			<input type="hidden" name="expenseId" value={id} />
+		{/each}
+		<span class="bulk-toolbar__count">
+			{selectedIds.length} selected
+		</span>
+		<div class="bulk-toolbar__picker">
+			<MultiSelect
+				options={data.categories}
+				name="categoryId"
+				label="Categories to apply"
+				placeholder="Select categories"
+			/>
+		</div>
+		<button class="button" type="submit">Apply tags</button>
+	</form>
+{/if}
+
 <div class="card">
 	{#if data.expenses.length === 0}
 		<p class="empty-state">
@@ -278,6 +352,15 @@
 		<table class="table">
 			<thead>
 				<tr class="table__head">
+					<th class="table__cell--select">
+						<input
+							type="checkbox"
+							checked={allSelected}
+							indeterminate={someSelected}
+							onchange={toggleAll}
+							aria-label="Select all expenses"
+						/>
+					</th>
 					<th class="table__cell--caret"></th>
 					<th>Date</th>
 					<th>Title</th>
@@ -289,6 +372,14 @@
 			<tbody>
 				{#each data.expenses as expense (expense.id)}
 					<tr>
+						<td class="table__cell--select">
+							<input
+								type="checkbox"
+								checked={selectedIds.includes(expense.id)}
+								onchange={() => toggleRow(expense.id)}
+								aria-label="Select {expense.title}"
+							/>
+						</td>
 						<td class="table__cell--caret">
 							{#if hasDetails(expense)}
 								<button
@@ -361,7 +452,7 @@
 
 					{#if expandedId === expense.id && hasDetails(expense)}
 						<tr class="detail-row">
-							<td colspan="6">
+							<td colspan="7">
 								<dl class="detail">
 									{#if expense.fundWithdrawals[0]}
 										<div class="detail__item">
@@ -419,6 +510,38 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: $space-xs;
+	}
+
+	.bulk-toolbar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: $space-md;
+		margin-bottom: $space-md;
+		padding: $space-md;
+		background: $color-surface-raised;
+		border: 1px solid $color-border;
+		border-radius: $radius;
+
+		&__count {
+			font-size: $text-sm;
+			font-weight: 500;
+			color: $color-text-muted;
+		}
+
+		&__picker {
+			position: relative;
+			min-width: 220px;
+		}
+	}
+
+	.table__cell--select {
+		width: 2rem;
+		padding-right: 0;
+
+		input {
+			cursor: pointer;
+		}
 	}
 
 	.table__cell--caret {

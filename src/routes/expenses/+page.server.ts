@@ -1,6 +1,6 @@
 import { db } from '$lib/server/db';
 import { expenseCategories, expenses, funds, fundWithdrawals } from '$lib/server/db/schema';
-import { and, desc, eq, exists, like, sql } from 'drizzle-orm';
+import { and, desc, eq, exists, inArray, like, sql } from 'drizzle-orm';
 import { fail } from '@sveltejs/kit';
 import { parseDollars } from '$lib/money';
 import type { Actions, PageServerLoad } from './$types';
@@ -181,6 +181,49 @@ export const actions: Actions = {
 		return { success: true };
 	},
 
+	/** Apply one or more categories to a set of selected expenses, skipping links that already exist. */
+	applyCategories: async ({ request }) => {
+		const form = await request.formData();
+		const expenseIds = [
+			...new Set(
+				form
+					.getAll('expenseId')
+					.map((v) => Number(v))
+					.filter((n) => Number.isFinite(n) && n > 0)
+			)
+		];
+		const categoryIds = [
+			...new Set(
+				form
+					.getAll('categoryId')
+					.map((v) => Number(v))
+					.filter((n) => Number.isFinite(n) && n > 0)
+			)
+		];
+
+		if (expenseIds.length === 0) return fail(400, { error: 'Select at least one expense' });
+		if (categoryIds.length === 0) return fail(400, { error: 'Select at least one category' });
+
+		db.transaction((tx) => {
+			// Dedupe against existing links to respect the (expenseId, categoryId) unique constraint.
+			const existing = tx
+				.select()
+				.from(expenseCategories)
+				.where(inArray(expenseCategories.expenseId, expenseIds))
+				.all();
+			const seen = new Set(existing.map((l) => `${l.expenseId}:${l.categoryId}`));
+
+			const newPairs = [];
+			for (const expenseId of expenseIds) {
+				for (const categoryId of categoryIds) {
+					if (!seen.has(`${expenseId}:${categoryId}`)) newPairs.push({ expenseId, categoryId });
+				}
+			}
+			if (newPairs.length > 0) tx.insert(expenseCategories).values(newPairs).run();
+		});
+		return { success: true };
+	},
+
 	/** Deleting an expense cascade-deletes its category links and any linked fund withdrawal. */
 	delete: async ({ request }) => {
 		const form = await request.formData();
@@ -196,8 +239,12 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const id = Number(form.get('id'));
 		const date = String(form.get('date') ?? '').trim();
+		const title = String(form.get('title') ?? '').trim();
+		const amountCents = parseDollars(String(form.get('amount') ?? ''));
 
 		if (!id) return fail(400, { error: 'Missing expense id' });
+		if (!title) return fail(400, { error: 'Title is required' });
+		if (amountCents === null || amountCents < 0) return fail(400, { error: 'Enter a valid amount' });
 		if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail(400, { error: 'A valid date is required' });
 
 		const source = await db.query.expenses.findFirst({
@@ -210,8 +257,8 @@ export const actions: Actions = {
 			const { lastInsertRowid } = tx
 				.insert(expenses)
 				.values({
-					title: source.title,
-					amountCents: source.amountCents,
+					title,
+					amountCents,
 					date,
 					notes: source.notes
 				})
@@ -223,9 +270,9 @@ export const actions: Actions = {
 					.run();
 			}
 			syncExpenseWithdrawal(tx, expenseId, source.fundWithdrawals[0]?.fundId ?? null, {
-				title: source.title,
+				title,
 				date,
-				amountCents: source.amountCents
+				amountCents
 			});
 		});
 		return { success: true };

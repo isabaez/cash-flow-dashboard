@@ -240,8 +240,10 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const id = Number(form.get('id'));
 		const date = String(form.get('date') ?? '').trim();
+		const title = String(form.get('title') ?? '').trim();
 
 		if (!id) return fail(400, { error: 'Missing paycheck id' });
+		if (!title) return fail(400, { error: 'Title is required' });
 		if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail(400, { error: 'A valid date is required' });
 
 		const source = await db.query.paychecks.findFirst({
@@ -254,7 +256,7 @@ export const actions: Actions = {
 			const { lastInsertRowid } = tx
 				.insert(paychecks)
 				.values({
-					title: source.title,
+					title,
 					date,
 					grossCents: source.grossCents,
 					owner: source.owner,

@@ -214,7 +214,7 @@
 			{duplicating.deductions.length}
 			{duplicating.deductions.length === 1 ? 'deduction' : 'deductions'} and
 			{duplicating.allocations.length} fund
-			{duplicating.allocations.length === 1 ? 'allocation' : 'allocations'} to a new date.
+			{duplicating.allocations.length === 1 ? 'allocation' : 'allocations'}. Adjust the source and date below.
 		</p>
 		<form
 			method="POST"
@@ -226,6 +226,16 @@
 				}}
 		>
 			<input type="hidden" name="id" value={duplicating.id} />
+			<div class="field">
+				<label class="field__label" for="duplicate-title">Source</label>
+				<input
+					class="field__input"
+					id="duplicate-title"
+					name="title"
+					required
+					value={duplicating.title}
+				/>
+			</div>
 			<div class="field">
 				<label class="field__label" for="duplicate-date">New date</label>
 				<input
