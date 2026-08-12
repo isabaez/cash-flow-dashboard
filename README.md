@@ -69,6 +69,35 @@ Net worth is fund cost basis only — market gains/losses are not tracked.
 Deleting a category either unlinks it from expenses or reassigns the links to a replacement,
 in one transaction (see `src/routes/categories/+page.server.ts`).
 
+## AI insights (local, on-device)
+
+The **Insights** page generates budgeting tips and trend findings from **all** your recorded
+income and expenses using a local LLM — inference is loopback-only to [Ollama](https://ollama.com),
+so no financial data leaves the machine. Two complementary passes (`src/routes/insights/+server.ts`,
+`?mode=`):
+
+- **Summary insights** — the model interprets an exact, server-computed digest
+  (`src/lib/server/insights/digest.ts`) of pre-aggregated figures, so every number it cites is correct.
+- **Raw transaction analysis** — the model reads the individual transactions
+  (`src/lib/server/insights/raw.ts`) and finds patterns a totals summary would miss (recurring
+  charges, frequent small purchases, outliers). Capped at the 800 most recent rows to fit the
+  model's context.
+
+Prerequisite — install Ollama, then pull a model and make sure the server is running:
+
+```bash
+ollama pull llama3.1   # ~4.7 GB; the default model
+ollama serve           # usually auto-runs after install
+```
+
+Configure via environment variables (both optional):
+
+- `OLLAMA_MODEL` — model tag to use (default `llama3.1`). On lower-RAM Macs a smaller model such
+  as `llama3.2:3b` or `qwen2.5:3b` is faster; remember to `ollama pull` it first.
+- `OLLAMA_URL` — base URL of the Ollama server (default `http://127.0.0.1:11434`).
+
+If Ollama isn't reachable, the page shows a setup hint instead of failing hard.
+
 ## Pages
 
 - **Dashboard** — five overview charts via `Chart.svelte`: monthly net income vs expenses, savings
@@ -84,6 +113,8 @@ in one transaction (see `src/routes/categories/+page.server.ts`).
   average rate) via `Chart.svelte`; per-fund breakdown
 - **Categories** — CRUD with unlink-or-reassign delete; each category has an editable color
   (`<input type="color">`) rendered as a tag via `CategoryTag.svelte` here and on Expenses
+- **Insights** — local-LLM analysis of all recorded data; two streaming passes: a summary over a
+  server-computed digest and a raw pass over individual transactions (see "AI insights" above)
 
 ## Roadmap
 
@@ -94,4 +125,6 @@ in one transaction (see `src/routes/categories/+page.server.ts`).
 - [x] Dark theme, top-bar/drawer nav, modal forms, keyboard accessibility
 - [x] Dashboard charts (reuse `Chart.svelte`): net income vs expenses, savings fund growth,
       expenses by category, savings rate over time, paycheck flow breakdown
+- [x] AI insights page: local on-device LLM (Ollama) — a summary pass over a server-computed
+      digest and a raw pass over individual transactions
 - [ ] CSV export of filtered tables; text search; per-category budgets; SQLite backup

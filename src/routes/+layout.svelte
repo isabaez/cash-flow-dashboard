@@ -10,7 +10,8 @@
 		{ href: '/expenses', label: 'Expenses' },
 		{ href: '/funds', label: 'Funds' },
 		{ href: '/net-worth', label: 'Net Worth' },
-		{ href: '/categories', label: 'Categories' }
+		{ href: '/categories', label: 'Categories' },
+		{ href: '/insights', label: 'Insights' }
 	];
 
 	let menuOpen = $state(false);

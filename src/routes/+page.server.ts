@@ -9,8 +9,8 @@ import {
 	paycheckDeductions,
 	paychecks
 } from '$lib/server/db/schema';
-import { and, eq, like, notExists, sql, sum } from 'drizzle-orm';
-import { monthRange, nextMonth } from '$lib/date';
+import { and, eq, gte, like, lte, notExists, sql, sum } from 'drizzle-orm';
+import { monthLabel, monthRange, nextMonth } from '$lib/date';
 import type { PageServerLoad } from './$types';
 
 /** Trailing months used to estimate each fund's monthly contribution rate. */
@@ -39,13 +39,50 @@ const FUND_PALETTE = [
 /** Neutral grey for the "Uncategorized" doughnut slice (chart 3). */
 const UNCATEGORIZED_COLOR = '#97a0b3';
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async ({ url }) => {
 	// Month buckets keyed off each table's date column.
 	const pcMonth = sql<string>`substr(${paychecks.date}, 1, 7)`;
 	const expMonth = sql<string>`substr(${expenses.date}, 1, 7)`;
 	const wdMonth = sql<string>`substr(${fundWithdrawals.date}, 1, 7)`;
 
 	const currentMonth = new Date().toISOString().slice(0, 7);
+
+	// Category chart (chart 3) date filter — scopes ONLY that chart. Modes are
+	// mutually exclusive; invalid params fall back to the default (current month).
+	const monthRaw = url.searchParams.get('month');
+	const yearRaw = url.searchParams.get('year');
+	const fromRaw = url.searchParams.get('from');
+	const toRaw = url.searchParams.get('to');
+	const isMonth = (v: string | null): v is string => !!v && /^\d{4}-\d{2}$/.test(v);
+	const catMonth = isMonth(monthRaw) ? monthRaw : null;
+	const catYear = !catMonth && yearRaw && /^\d{4}$/.test(yearRaw) ? yearRaw : null;
+	// Range applies only when both bounds are valid months and ordered.
+	const rangeActive =
+		!catMonth && !catYear && isMonth(fromRaw) && isMonth(toRaw) && fromRaw <= toRaw;
+	const catFrom = rangeActive ? fromRaw : null;
+	const catTo = rangeActive ? toRaw : null;
+
+	// Shared WHERE for both category queries. With no filter applied it's undefined,
+	// so the chart shows all expenses across all time (drizzle ignores an undefined
+	// `where`, and `and(undefined, …)` drops the term).
+	const categoryDateWhere = catMonth
+		? like(expenses.date, `${catMonth}-%`)
+		: catYear
+			? like(expenses.date, `${catYear}-%`)
+			: rangeActive
+				? and(gte(expMonth, catFrom!), lte(expMonth, catTo!))
+				: undefined;
+
+	// Human-readable label for the card title.
+	const categoryPeriodLabel = catMonth
+		? monthLabel(catMonth)
+		: catYear
+			? catYear
+			: rangeActive
+				? catFrom === catTo
+					? monthLabel(catFrom!)
+					: `${monthLabel(catFrom!)} – ${monthLabel(catTo!)}`
+				: 'All time';
 
 	const [
 		grossRows,
@@ -104,9 +141,9 @@ export const load: PageServerLoad = async () => {
 			})
 			.from(funds)
 			.orderBy(funds.name),
-		// Current-month expense total per category (chart 3). Categories are
+		// Expense total per category over the selected period (chart 3). Categories are
 		// many-to-many, so an expense with N categories counts fully toward each —
-		// slices can sum above the month's expense total. That's fine for a share view.
+		// bars can sum above the period's expense total. That's fine for a per-category view.
 		db
 			.select({
 				name: categories.name,
@@ -116,15 +153,15 @@ export const load: PageServerLoad = async () => {
 			.from(expenseCategories)
 			.innerJoin(expenses, eq(expenseCategories.expenseId, expenses.id))
 			.innerJoin(categories, eq(expenseCategories.categoryId, categories.id))
-			.where(like(expenses.date, `${currentMonth}-%`))
+			.where(categoryDateWhere)
 			.groupBy(categories.id),
-		// Current-month expenses carrying no category → an "Uncategorized" slice.
+		// Expenses in the selected period carrying no category → an "Uncategorized" bar.
 		db
 			.select({ cents: sum(expenses.amountCents).mapWith(Number) })
 			.from(expenses)
 			.where(
 				and(
-					like(expenses.date, `${currentMonth}-%`),
+					categoryDateWhere,
 					notExists(
 						db
 							.select({ one: sql`1` })
@@ -222,8 +259,8 @@ export const load: PageServerLoad = async () => {
 		}
 	}
 
-	// Chart 3: current-month category breakdown, largest first, with an
-	// Uncategorized slice appended when there's uncategorized spend.
+	// Chart 3: category breakdown for the selected period, largest first, with an
+	// Uncategorized bar appended when there's uncategorized spend.
 	const categoryBreakdown = categoryRows
 		.map((r) => ({ name: r.name, color: r.color, cents: r.cents }))
 		.sort((a, b) => b.cents - a.cents);
@@ -236,6 +273,11 @@ export const load: PageServerLoad = async () => {
 		});
 	}
 
+	// Filter dropdown options — months/years that actually have expense data, newest
+	// first (expenseRows is already grouped by expense month).
+	const availableMonths = expenseRows.map((r) => r.month).sort((a, b) => b.localeCompare(a));
+	const availableYears = [...new Set(availableMonths.map((m) => m.slice(0, 4)))];
+
 	return {
 		months,
 		netIncomeCents,
@@ -245,7 +287,10 @@ export const load: PageServerLoad = async () => {
 		fundSeries,
 		projectionMonths,
 		categoryBreakdown,
-		categoryMonth: currentMonth,
+		categoryPeriodLabel,
+		categoryFilter: { month: catMonth, year: catYear, from: catFrom, to: catTo },
+		availableMonths,
+		availableYears,
 		hasData: months.length > 0
 	};
 };
