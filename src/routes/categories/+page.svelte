@@ -147,19 +147,6 @@
 										}}
 								>
 									<input type="hidden" name="id" value={category.id} />
-									{#if category.expenseCount > 0}
-										<select
-											class="field__input"
-											name="replacementId"
-											aria-label="What happens to this category's expenses"
-										>
-											<option value="" selected>Remove from expenses</option>
-											{#each otherCategories(category.id) as other}
-												<option value={other.id}>Reassign to {other.name}</option>
-											{/each}
-										</select>
-									{/if}
-									<button class="link-action link-action--danger" type="submit">Confirm</button>
 									<button
 										class="link-action"
 										type="button"
@@ -167,6 +154,7 @@
 									>
 										Cancel
 									</button>
+                  <button class="link-action link-action--danger" type="submit">Confirm</button>
 								</form>
 							{:else}
 								<div class="row-actions">

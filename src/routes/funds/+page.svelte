@@ -282,13 +282,6 @@
 										}}
 								>
 									<input type="hidden" name="id" value={fund.id} />
-									<span class="confirm-text">
-										Deletes {fund.contributionCount}
-										{fund.contributionCount === 1 ? 'contribution' : 'contributions'} and
-										{fund.withdrawalCount}
-										{fund.withdrawalCount === 1 ? 'withdrawal' : 'withdrawals'}. Sure?
-									</span>
-									<button class="link-action link-action--danger" type="submit">Confirm</button>
 									<button
 										class="link-action"
 										type="button"
@@ -296,6 +289,7 @@
 									>
 										Cancel
 									</button>
+                  <button class="link-action link-action--danger" type="submit">Confirm</button>
 								</form>
 							{:else}
 								<div class="inline-form">

@@ -3,9 +3,10 @@
 	// All aggregation happens server-side (see +page.server.ts); here we just shape
 	// the results into Chart.js configs and reuse the shared Chart.svelte wrapper.
 	import Chart from '$lib/components/Chart.svelte';
+	import CategoryPeriodFilter from '$lib/components/CategoryPeriodFilter.svelte';
 	import { formatCents } from '$lib/money';
 	import { monthLabel } from '$lib/date';
-	import { seriesLegend, categoryLegend } from '$lib/chart';
+	import { seriesLegend } from '$lib/chart';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -13,7 +14,6 @@
 	const INCOME_COLOR = '#3dd68c'; // success green
 	const EXPENSE_COLOR = '#f2555a'; // danger red
 	const ALLOCATION_COLOR = '#7c9aff'; // primary blue
-	const SURFACE_COLOR = '#12161f'; // slice gaps on the doughnut
 
 	const toDollars = (cents: number) => cents / 100;
 	/** Append a 2-digit alpha to a #RRGGBB hex, e.g. withAlpha('#7c9aff', 'cc'). */
@@ -111,34 +111,37 @@
 		scales: { y: { stacked: true, ticks: currencyTicks } }
 	};
 
-	// --- 3. Expenses by category (doughnut, current month) --------------------
-	const categoryTotalCents = $derived(data.categoryBreakdown.reduce((s, c) => s + c.cents, 0));
+	// --- 3. Expenses by category (bar, filterable period) ---------------------
+	// A bar chart (not a pie): expenses can carry multiple categories and count fully
+	// toward each, so per-category totals can exceed the period's spend and would not
+	// sum to a meaningful whole. Each bar carries its category's own color.
 	const categoryData = $derived({
 		labels: data.categoryBreakdown.map((c) => c.name),
 		datasets: [
 			{
+				label: 'Spent',
 				data: data.categoryBreakdown.map((c) => toDollars(c.cents)),
 				backgroundColor: data.categoryBreakdown.map((c) => c.color),
-				borderColor: SURFACE_COLOR,
-				borderWidth: 2
+				borderRadius: 4
 			}
 		]
 	});
 	const categoryOptions = {
 		...noAspect,
+		interaction: indexHover,
 		plugins: {
-			legend: categoryLegend,
+			// Category names are on the x-axis, so a legend would be redundant.
+			legend: { display: false },
 			tooltip: {
 				callbacks: {
-					label: (ctx: { label?: string; parsed: number }) => {
-						const cents = Math.round(ctx.parsed * 100);
-						const pct =
-							categoryTotalCents > 0 ? ((cents / categoryTotalCents) * 100).toFixed(1) : '0.0';
-						return `${ctx.label}: ${formatCents(cents)} (${pct}%)`;
-					}
+					label: (ctx: { label?: string; parsed: { y: number | null } }) =>
+						ctx.parsed.y === null
+							? ''
+							: `${ctx.label}: ${formatCents(Math.round(ctx.parsed.y * 100))}`
 				}
 			}
-		}
+		},
+		scales: { y: { ticks: currencyTicks } }
 	};
 
 	// --- 4. Savings rate over time (percent line) -----------------------------
@@ -267,16 +270,26 @@
 		</div>
 
 		<div class="card chart-card">
-			<h2 class="chart-card__title">Expenses by category — {monthLabel(data.categoryMonth)}</h2>
+			<h2 class="chart-card__title">Expenses by category — {data.categoryPeriodLabel}</h2>
+			{#if data.availableMonths.length > 0}
+				<CategoryPeriodFilter
+					months={data.availableMonths}
+					years={data.availableYears}
+					month={data.categoryFilter.month}
+					year={data.categoryFilter.year}
+					from={data.categoryFilter.from}
+					to={data.categoryFilter.to}
+				/>
+			{/if}
 			{#if data.categoryBreakdown.length > 0}
 				<Chart
-					type="doughnut"
+					type="bar"
 					data={categoryData}
 					options={categoryOptions}
-					label="This month's expenses broken down by category"
+					label="Expenses for {data.categoryPeriodLabel} broken down by category"
 				/>
 			{:else}
-				<p class="empty-state">No expenses recorded this month.</p>
+				<p class="empty-state">No expenses recorded for this period.</p>
 			{/if}
 		</div>
 

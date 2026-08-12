@@ -310,12 +310,6 @@
 										}}
 								>
 									<input type="hidden" name="id" value={paycheck.id} />
-									<span class="confirm-text">
-										Delete this paycheck{paycheck.deductions.length + paycheck.allocations.length > 0
-											? ' and its deductions and allocations'
-											: ''}?
-									</span>
-									<button class="link-action link-action--danger" type="submit">Confirm</button>
 									<button
 										class="link-action"
 										type="button"
@@ -323,6 +317,7 @@
 									>
 										Cancel
 									</button>
+                  <button class="link-action link-action--danger" type="submit">Confirm</button>
 								</form>
 							{:else}
 								<div class="inline-form">

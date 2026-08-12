@@ -43,3 +43,28 @@ export function monthRange(start: string, end: string): string[] {
 	for (let m = start; m <= end; m = nextMonth(m)) months.push(m);
 	return months;
 }
+
+/**
+ * Parse a US-format date "MM/DD/YYYY" (1–2 digit month/day accepted) into an ISO
+ * "YYYY-MM-DD" string, or `null` if it isn't a real calendar date. Used by the
+ * CSV expense importer; expenses are stored as ISO date strings.
+ */
+export function parseUsDate(input: string): string | null {
+	const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(input.trim());
+	if (!m) return null;
+	const [, mm, dd, yyyy] = m;
+	const month = Number(mm);
+	const day = Number(dd);
+	const year = Number(yyyy);
+	if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+	// Reject impossible days (e.g. 02/30) by round-tripping through a UTC Date.
+	const date = new Date(Date.UTC(year, month - 1, day));
+	if (
+		date.getUTCFullYear() !== year ||
+		date.getUTCMonth() !== month - 1 ||
+		date.getUTCDate() !== day
+	) {
+		return null;
+	}
+	return `${yyyy}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
