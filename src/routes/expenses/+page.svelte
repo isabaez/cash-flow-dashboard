@@ -1,16 +1,110 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
+	import { invalidateAll } from '$app/navigation';
 	import Modal from '$lib/components/Modal.svelte';
 	import FilterBar from '$lib/components/FilterBar.svelte';
 	import MultiSelect from '$lib/components/MultiSelect.svelte';
 	import CategoryTag from '$lib/components/CategoryTag.svelte';
+	import ProgressBar from '$lib/components/ProgressBar.svelte';
 	import { formatCents } from '$lib/money';
 	import { formatDate } from '$lib/date';
+	import { parseCsv, toExpenseRows, type CsvExpenseRow } from '$lib/csv';
 	import { applyCategoryFilters } from '$lib/filters';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+
+	// --- CSV import ----------------------------------------------------------
+	const IMPORT_BATCH_SIZE = 50;
+	type RowResult = { line: number; ok: boolean; error?: string };
+
+	let showImportModal = $state(false);
+	let importRows = $state<CsvExpenseRow[]>([]);
+	let importFileName = $state('');
+	let importParseError = $state<string | null>(null);
+	let importing = $state(false);
+	let importProcessed = $state(0);
+	let importFailures = $state<RowResult[]>([]);
+	let importDone = $state(false);
+
+	const importProgress = $derived(
+		importRows.length > 0 ? (importProcessed / importRows.length) * 100 : 0
+	);
+	const importedCount = $derived(importProcessed - importFailures.length);
+
+	function resetImport() {
+		importRows = [];
+		importFileName = '';
+		importParseError = null;
+		importing = false;
+		importProcessed = 0;
+		importFailures = [];
+		importDone = false;
+	}
+
+	function openImport() {
+		resetImport();
+		showImportModal = true;
+	}
+
+	async function onImportFileChange(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		importRows = [];
+		importParseError = null;
+		importFailures = [];
+		importDone = false;
+		importProcessed = 0;
+		if (!file) {
+			importFileName = '';
+			return;
+		}
+		importFileName = file.name;
+		try {
+			const text = await file.text();
+			const rows = toExpenseRows(parseCsv(text));
+			if (rows.length === 0) {
+				importParseError = 'No data rows found in this file.';
+				return;
+			}
+			importRows = rows;
+		} catch {
+			importParseError = 'Could not read this file.';
+		}
+	}
+
+	async function runImport() {
+		if (importing || importRows.length === 0) return;
+		importing = true;
+		importDone = false;
+		importProcessed = 0;
+		importFailures = [];
+
+		try {
+			for (let i = 0; i < importRows.length; i += IMPORT_BATCH_SIZE) {
+				const batch = importRows.slice(i, i + IMPORT_BATCH_SIZE);
+				const res = await fetch('/expenses/import', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ rows: batch })
+				});
+				if (!res.ok) {
+					const detail = await res.json().catch(() => ({}));
+					importParseError = detail?.error ?? `Import failed (HTTP ${res.status}).`;
+					break;
+				}
+				const { results } = (await res.json()) as { results: RowResult[] };
+				importFailures = [...importFailures, ...results.filter((r) => !r.ok)];
+				importProcessed += batch.length;
+			}
+			importDone = true;
+			// The table + category list come from the page load; refresh them.
+			await invalidateAll();
+		} finally {
+			importing = false;
+		}
+	}
 
 	type Expense = (typeof data.expenses)[number];
 	type Category = (typeof data.categories)[number];
@@ -101,7 +195,10 @@
 
 <div class="page-header">
 	<h1>Expenses</h1>
-	<button class="button" type="button" onclick={() => (showAddModal = true)}>Add expense</button>
+	<div class="page-header__actions">
+		<button class="button button--ghost" type="button" onclick={openImport}>Import CSV</button>
+		<button class="button" type="button" onclick={() => (showAddModal = true)}>Add expense</button>
+	</div>
 </div>
 
 <FilterBar
@@ -223,6 +320,77 @@
 	{/key}
 </Modal>
 
+<Modal bind:open={showImportModal} title="Import expenses from CSV">
+	<p class="import-hint">
+		Upload a CSV with columns <strong>Date, Title, Amount, Categories</strong>. Dates use
+		<code>MM/DD/YYYY</code>. Categories can be blank, one name, or a comma-separated list — wrap a
+		multi-category cell in quotes, e.g. <code>"Groceries, Dining"</code>. Unknown categories are
+		created automatically. Invalid rows are skipped and listed below.
+	</p>
+
+	<div class="import-file">
+		<input
+			class="field__input"
+			type="file"
+			accept=".csv,text/csv"
+			disabled={importing}
+			onchange={onImportFileChange}
+		/>
+	</div>
+
+	{#if importParseError}
+		<p class="form-error">{importParseError}</p>
+	{/if}
+
+	{#if importRows.length > 0}
+		<p class="import-status">
+			{importFileName} — {importRows.length}
+			{importRows.length === 1 ? 'row' : 'rows'} ready to import.
+		</p>
+	{/if}
+
+	{#if importing || importDone}
+		<div class="import-progress">
+			<ProgressBar value={importProgress} label="CSV import progress" />
+			<span class="import-progress__count">{importProcessed} / {importRows.length}</span>
+		</div>
+	{/if}
+
+	{#if importDone}
+		<p class="import-summary">
+			Imported {importedCount}
+			{importedCount === 1 ? 'expense' : 'expenses'}{importFailures.length > 0
+				? `, skipped ${importFailures.length}`
+				: ''}.
+		</p>
+		{#if importFailures.length > 0}
+			<div class="import-errors">
+				<p class="import-errors__title">Skipped rows:</p>
+				<ul class="import-errors__list">
+					{#each importFailures as failure (failure.line)}
+						<li>Line {failure.line}: {failure.error}</li>
+					{/each}
+				</ul>
+			</div>
+		{/if}
+	{/if}
+
+	<div class="import-actions">
+		{#if importDone}
+			<button class="button" type="button" onclick={() => (showImportModal = false)}>Done</button>
+		{:else}
+			<button
+				class="button"
+				type="button"
+				disabled={importing || importRows.length === 0}
+				onclick={runImport}
+			>
+				{importing ? 'Importing…' : 'Import'}
+			</button>
+		{/if}
+	</div>
+</Modal>
+
 <Modal bind:open={showEditModal} title="Edit expense">
 	{#if form?.error}
 		<p class="form-error">{form.error}</p>
@@ -301,7 +469,7 @@
 					name="date"
 					type="date"
 					required
-					value={data.today}
+					value={duplicating.date}
 				/>
 			</div>
 			<button class="button" type="submit">Duplicate</button>
@@ -327,15 +495,32 @@
 		<span class="bulk-toolbar__count">
 			{selectedIds.length} selected
 		</span>
-		<div class="bulk-toolbar__picker">
-			<MultiSelect
-				options={data.categories}
-				name="categoryId"
-				label="Categories to apply"
-				placeholder="Select categories"
-			/>
+		<div class="bulk-toolbar__group">
+			<div class="bulk-toolbar__picker">
+				<MultiSelect
+					options={data.categories}
+					name="categoryId"
+					label="Categories"
+					placeholder="Select categories"
+				/>
+			</div>
+			<button class="button" type="submit">Apply tags</button>
+			<button class="button button--ghost" type="submit" formaction="?/removeCategories">
+				Remove tags
+			</button>
 		</div>
-		<button class="button" type="submit">Apply tags</button>
+		<div class="bulk-toolbar__group">
+			<select class="field__input bulk-toolbar__fund" name="fundId" aria-label="Fund">
+				<option value="">Fund…</option>
+				{#each data.funds as fund}
+					<option value={fund.id}>{fund.name}</option>
+				{/each}
+			</select>
+			<button class="button" type="submit" formaction="?/setFund">Set fund</button>
+			<button class="button button--ghost" type="submit" formaction="?/removeFund">
+				Remove fund
+			</button>
+		</div>
 	</form>
 {/if}
 
@@ -425,10 +610,10 @@
 										}}
 								>
 									<input type="hidden" name="id" value={expense.id} />
-									<button class="link-action link-action--danger" type="submit">Confirm</button>
 									<button class="link-action" type="button" onclick={() => (deletingId = null)}>
 										Cancel
 									</button>
+                  <button class="link-action link-action--danger" type="submit">Confirm</button>
 								</form>
 							{:else}
 								<div class="inline-form">
@@ -522,6 +707,12 @@
 		background: $color-surface-raised;
 		border: 1px solid $color-border;
 		border-radius: $radius;
+		// Stay visible while scrolling a long list; sits flush below the sticky top
+		// nav (z-index 20) without overlapping it.
+		position: sticky;
+		top: $header-height;
+		z-index: 10;
+		box-shadow: $shadow;
 
 		&__count {
 			font-size: $text-sm;
@@ -529,9 +720,21 @@
 			color: $color-text-muted;
 		}
 
+		&__group {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: $space-sm;
+		}
+
 		&__picker {
 			position: relative;
 			min-width: 220px;
+		}
+
+		&__fund {
+			width: auto;
+			min-width: 160px;
 		}
 	}
 
@@ -618,5 +821,79 @@
 	.form-error {
 		color: $color-danger;
 		font-size: $text-sm;
+	}
+
+	.page-header__actions {
+		display: flex;
+		gap: $space-sm;
+	}
+
+	.import-hint {
+		margin: 0 0 $space-md;
+		font-size: $text-sm;
+		color: $color-text-muted;
+
+		code {
+			background: $color-surface-raised;
+			padding: 0 $space-xs;
+			border-radius: 4px;
+		}
+	}
+
+	.import-file {
+		margin-bottom: $space-md;
+	}
+
+	.import-status {
+		margin: 0 0 $space-md;
+		font-size: $text-sm;
+		color: $color-text-muted;
+	}
+
+	.import-progress {
+		display: flex;
+		align-items: center;
+		gap: $space-sm;
+		margin-bottom: $space-md;
+
+		&__count {
+			font-size: $text-sm;
+			color: $color-text-muted;
+			white-space: nowrap;
+			font-variant-numeric: tabular-nums;
+		}
+	}
+
+	.import-summary {
+		margin: 0 0 $space-sm;
+		font-weight: 500;
+	}
+
+	.import-errors {
+		margin-bottom: $space-md;
+		max-height: 12rem;
+		overflow-y: auto;
+
+		&__title {
+			margin: 0 0 $space-xs;
+			font-size: $text-sm;
+			color: $color-danger;
+		}
+
+		&__list {
+			margin: 0;
+			padding-left: $space-lg;
+			font-size: $text-sm;
+			color: $color-text-muted;
+
+			li {
+				margin-bottom: $space-xs;
+			}
+		}
+	}
+
+	.import-actions {
+		display: flex;
+		justify-content: flex-end;
 	}
 </style>

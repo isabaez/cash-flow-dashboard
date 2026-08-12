@@ -29,6 +29,7 @@
 	let checkedIds = $state<number[]>([...selected]);
 	let trigger = $state<HTMLButtonElement>();
 	let root = $state<HTMLDivElement>();
+	let searchInput = $state<HTMLInputElement>();
 	// Live filter text for narrowing the visible options by name.
 	let query = $state('');
 
@@ -43,6 +44,11 @@
 	// Start unfiltered each time the panel reopens.
 	$effect(() => {
 		if (!open) query = '';
+	});
+
+	// Focus the filter box when the panel opens so the user can type immediately.
+	$effect(() => {
+		if (open) searchInput?.focus({ preventScroll: true });
 	});
 
 	const summary = $derived(
@@ -99,6 +105,7 @@
 			<p class="multi-select__empty">No options yet.</p>
 		{:else}
 			<input
+				bind:this={searchInput}
 				class="multi-select__search field__input"
 				type="text"
 				bind:value={query}

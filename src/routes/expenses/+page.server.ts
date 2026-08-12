@@ -224,6 +224,105 @@ export const actions: Actions = {
 		return { success: true };
 	},
 
+	/** Remove one or more categories from a set of selected expenses; links that don't
+	 * exist are simply skipped by the delete. Inverse of applyCategories. */
+	removeCategories: async ({ request }) => {
+		const form = await request.formData();
+		const expenseIds = [
+			...new Set(
+				form
+					.getAll('expenseId')
+					.map((v) => Number(v))
+					.filter((n) => Number.isFinite(n) && n > 0)
+			)
+		];
+		const categoryIds = [
+			...new Set(
+				form
+					.getAll('categoryId')
+					.map((v) => Number(v))
+					.filter((n) => Number.isFinite(n) && n > 0)
+			)
+		];
+
+		if (expenseIds.length === 0) return fail(400, { error: 'Select at least one expense' });
+		if (categoryIds.length === 0) return fail(400, { error: 'Select at least one category' });
+
+		await db
+			.delete(expenseCategories)
+			.where(
+				and(
+					inArray(expenseCategories.expenseId, expenseIds),
+					inArray(expenseCategories.categoryId, categoryIds)
+				)
+			);
+		return { success: true };
+	},
+
+	/** Set (or move) the "paid from fund" value on all selected expenses. Each
+	 * expense's mirror withdrawal uses that expense's own amount/date/title. */
+	setFund: async ({ request }) => {
+		const form = await request.formData();
+		const expenseIds = [
+			...new Set(
+				form
+					.getAll('expenseId')
+					.map((v) => Number(v))
+					.filter((n) => Number.isFinite(n) && n > 0)
+			)
+		];
+		const fundRaw = form.get('fundId');
+		const fundId = fundRaw ? Number(fundRaw) : null;
+
+		if (expenseIds.length === 0) return fail(400, { error: 'Select at least one expense' });
+		if (fundId === null || !Number.isFinite(fundId)) return fail(400, { error: 'Select a fund' });
+
+		const fund = await db.query.funds.findFirst({ where: eq(funds.id, fundId) });
+		if (!fund) return fail(400, { error: 'Invalid fund' });
+
+		db.transaction((tx) => {
+			const rows = tx
+				.select({
+					id: expenses.id,
+					title: expenses.title,
+					date: expenses.date,
+					amountCents: expenses.amountCents
+				})
+				.from(expenses)
+				.where(inArray(expenses.id, expenseIds))
+				.all();
+			for (const e of rows) {
+				syncExpenseWithdrawal(tx, e.id, fundId, {
+					title: e.title,
+					date: e.date,
+					amountCents: e.amountCents
+				});
+			}
+		});
+		return { success: true };
+	},
+
+	/** Clear the "paid from fund" value on all selected expenses by removing their
+	 * mirror withdrawals. Expenses with no fund are simply unaffected. */
+	removeFund: async ({ request }) => {
+		const form = await request.formData();
+		const expenseIds = [
+			...new Set(
+				form
+					.getAll('expenseId')
+					.map((v) => Number(v))
+					.filter((n) => Number.isFinite(n) && n > 0)
+			)
+		];
+
+		if (expenseIds.length === 0) return fail(400, { error: 'Select at least one expense' });
+
+		// Only mirror withdrawals carry a non-null expenseId, so this clears exactly
+		// the selected expenses' fund links and nothing else.
+		await db.delete(fundWithdrawals).where(inArray(fundWithdrawals.expenseId, expenseIds));
+		return { success: true };
+	},
+
 	/** Deleting an expense cascade-deletes its category links and any linked fund withdrawal. */
 	delete: async ({ request }) => {
 		const form = await request.formData();

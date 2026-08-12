@@ -44,23 +44,3 @@ export const seriesLegend = {
 			})
 	}
 };
-
-/** For the doughnut, where each legend key maps to a slice (data index). */
-export const categoryLegend = {
-	position: 'bottom' as const,
-	labels: {
-		...KEY_LABELS,
-		generateLabels: (chart: Chart): LegendItem[] => {
-			const colors = (chart.data.datasets[0]?.backgroundColor ?? []) as string[];
-			return (chart.data.labels ?? []).map((label, i) => ({
-				text: String(label),
-				fillStyle: colors[i],
-				strokeStyle: colors[i],
-				fontColor: TEXT_COLOR,
-				lineWidth: 0,
-				hidden: !chart.getDataVisibility(i),
-				index: i
-			}));
-		}
-	}
-};
