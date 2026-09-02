@@ -1,0 +1,26 @@
+# Build outputs — regenerated inside the image
+node_modules/
+.svelte-kit/
+build/
+
+# The database lives in a named Docker volume, never baked into the image
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+.git/
+.gitignore
+.gitattributes
+.claude/
+docs/
+.env
+.DS_Store
+vite.config.ts.timestamp-*
+
+# Docker's own files aren't needed in the build context
+Dockerfile
+.dockerignore
+docker-compose.yml
+start.sh

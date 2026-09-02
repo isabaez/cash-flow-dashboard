@@ -1,0 +1,59 @@
+# Fixed project name so volume names are stable and start.sh can address them.
+name: cash-flow-dashboard
+
+services:
+  app:
+    build: .
+    image: cash-flow-dashboard:latest
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      DATABASE_PATH: /app/data/cashflow.db
+      # Service name on the compose network. Read at runtime via $env/dynamic/private
+      # in src/lib/server/insights/ollama.ts, so changing it needs no rebuild.
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1}
+      # adapter-node CSRF-checks form-action POSTs; every modal in this app is a
+      # form action, so this must match the URL you actually browse to.
+      ORIGIN: ${ORIGIN:-http://localhost:3000}
+      # adapter-node defaults to 512kB. The CSV importer posts the whole file as
+      # one JSON body (src/routes/expenses/import/+server.ts), which a full bank
+      # statement can exceed.
+      BODY_SIZE_LIMIT: 10M
+    volumes:
+      - cashflow-data:/app/data
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      # The slim image has no curl, so use Node's global fetch.
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  ollama:
+    image: ollama/ollama
+    restart: unless-stopped
+    # Deliberately no `ports:` mapping — an unpublished port cannot collide with a
+    # host-native Ollama on 11434. The app reaches it over the compose network.
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ['CMD', 'ollama', 'list']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  cashflow-data:
+  ollama-models:

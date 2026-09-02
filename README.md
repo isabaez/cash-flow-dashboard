@@ -6,13 +6,43 @@ SQLite (Drizzle ORM) + SCSS/BEM, dark theme.
 
 ## Setup
 
+### Docker (one command)
+
+```bash
+./start.sh
+```
+
+Builds the image, starts the app plus an Ollama sidecar, creates the schema, pulls the model if
+it's missing, and serves on <http://localhost:3000>. First run downloads the model (~4.7 GB for
+`llama3.1`), so give it time.
+
+```bash
+./start.sh --import-db   # first run only: copy an existing ./data/cashflow.db into the volume
+docker compose logs -f app
+docker compose down
+```
+
+Notes:
+
+- **Data** lives in the `cash-flow-dashboard_cashflow-data` Docker volume, not in `./data`. Back it
+  up with
+  `docker run --rm -v cash-flow-dashboard_cashflow-data:/d -v "$PWD":/out alpine tar czf /out/cashflow-backup.tar.gz -C /d .`
+  `docker compose down` keeps the volume; `down -v` deletes it.
+- **Ollama** runs as a container so Insights works with no host install, but a Linux container on
+  macOS gets no Metal/GPU access — it's CPU-only and slower than a host-native Ollama. Its port is
+  intentionally not published, so it won't collide with one you already run on 11434. To use a host
+  Ollama instead, set `OLLAMA_URL=http://host.docker.internal:11434` in a `.env` file.
+- `OLLAMA_MODEL` and `ORIGIN` can be overridden from a `.env` file next to `docker-compose.yml`.
+
+### Local development
+
 ```bash
 npm install
 npm run db:push   # creates data/cashflow.db from the Drizzle schema
 npm run dev
 ```
 
-Production: `npm run build && npm start` (adapter-node, serves on port 3000).
+Production without Docker: `npm run build && npm start` (adapter-node, serves on port 3000).
 
 Nine default funds (401k, 403b, Roth IRAs, Wedding Fund, Shared Expenses Fund, BTC/Gold/Silver)
 are seeded on first boot when the `funds` table is empty; deleted defaults stay deleted.
