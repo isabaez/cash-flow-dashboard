@@ -1,388 +1,730 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import Modal from '$lib/components/Modal.svelte';
-	import { formatCents, formatBps } from '$lib/money';
+	import FilterBar from '$lib/components/FilterBar.svelte';
+	import { formatBps, formatCents } from '$lib/money';
+	import { formatDate } from '$lib/date';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
-	type Stream = (typeof data.streams)[number];
+	type Paycheck = (typeof data.paychecks)[number];
 
-	// Whether the "add income stream" modal is open.
+	const OWNERS = ['me', 'spouse'];
+
+	// Whether the "add paycheck" modal is open.
 	let showAddModal = $state(false);
-	// Which stream's deductions panel is expanded.
-	let expandedId = $state<number | null>(null);
-	// Which stream is being edited inline.
-	let editingId = $state<number | null>(null);
-	// Which stream is pending delete confirmation.
+	// Paycheck being edited in the edit modal.
+	let editing = $state<Paycheck | null>(null);
+	let showEditModal = $state(false);
+	// Paycheck being duplicated in the duplicate modal.
+	let duplicating = $state<Paycheck | null>(null);
+	let showDuplicateModal = $state(false);
+	// Which paycheck is pending delete confirmation.
 	let deletingId = $state<number | null>(null);
-	// Kind of the deduction currently being added (drives the value input hint).
+	// Which paycheck's detail panel (deductions + allocations) is expanded.
+	let expandedId = $state<number | null>(null);
+
+	// Kind/basis of the deduction currently being added (drives conditional inputs).
 	let newDeductionKind = $state<'fixed' | 'percent'>('fixed');
-	// Which deduction is being edited inline, and the kind of its edit form.
+	let newDeductionBasis = $state<'gross' | 'net'>('gross');
+	// Which deduction is being edited inline, and its form's kind/basis.
 	let editingDeductionId = $state<number | null>(null);
 	let editDeductionKind = $state<'fixed' | 'percent'>('fixed');
+	let editDeductionBasis = $state<'gross' | 'net'>('gross');
 
-	function startEditDeduction(id: number, kind: string) {
-		editingDeductionId = id;
-		editDeductionKind = kind === 'percent' ? 'percent' : 'fixed';
-	}
-
-	const OWNERS = ['joint', 'me', 'spouse'];
+	// Same pattern for allocations.
+	let newAllocationKind = $state<'fixed' | 'percent'>('percent');
+	let newAllocationBasis = $state<'gross' | 'net'>('net');
+	let editingAllocationId = $state<number | null>(null);
+	let editAllocationKind = $state<'fixed' | 'percent'>('percent');
+	let editAllocationBasis = $state<'gross' | 'net'>('net');
 
 	function toggleExpanded(id: number) {
 		expandedId = expandedId === id ? null : id;
 	}
 
-	/** Net = gross minus fixed deductions minus percent deductions of gross. */
-	function netCents(stream: Stream): number {
-		return stream.deductions.reduce(
-			(net, d) =>
-				net - (d.kind === 'percent' ? Math.round((stream.amountCents * d.value) / 10000) : d.value),
-			stream.amountCents
-		);
+	function openEdit(paycheck: Paycheck) {
+		editing = paycheck;
+		deletingId = null;
+		showEditModal = true;
+	}
+
+	function openDuplicate(paycheck: Paycheck) {
+		duplicating = paycheck;
+		deletingId = null;
+		showDuplicateModal = true;
+	}
+
+	function startEditDeduction(deduction: Paycheck['deductions'][number]) {
+		editingDeductionId = deduction.id;
+		editDeductionKind = deduction.kind === 'percent' ? 'percent' : 'fixed';
+		editDeductionBasis = deduction.basis === 'net' ? 'net' : 'gross';
+	}
+
+	function startEditAllocation(allocation: Paycheck['allocations'][number]) {
+		editingAllocationId = allocation.id;
+		editAllocationKind = allocation.kind === 'percent' ? 'percent' : 'fixed';
+		editAllocationBasis = allocation.basis === 'net' ? 'net' : 'gross';
+	}
+
+	/** Net take-home: gross minus the stored resolved deduction amounts. */
+	function netCents(paycheck: Paycheck): number {
+		return paycheck.deductions.reduce((net, d) => net - d.resolvedCents, paycheck.grossCents);
+	}
+
+	/** Total funneled into funds from this paycheck. */
+	function allocatedCents(paycheck: Paycheck): number {
+		return paycheck.allocations.reduce((sum, a) => sum + a.resolvedCents, 0);
 	}
 
 	function dollars(cents: number): string {
 		return (cents / 100).toFixed(2);
 	}
+
+	/** "fixed" -> "$250.00" ; percent -> "6.5% of gross" */
+	function ruleLabel(rule: { kind: string; basis: string; value: number }): string {
+		return rule.kind === 'percent'
+			? `${formatBps(rule.value)} of ${rule.basis}`
+			: formatCents(rule.value);
+	}
 </script>
 
 <div class="page-header">
 	<h1>Income</h1>
-	<button class="button" type="button" onclick={() => (showAddModal = true)}>Add income stream</button>
+	<button class="button" type="button" onclick={() => (showAddModal = true)}>Add paycheck</button>
 </div>
+
+<FilterBar
+	months={data.availableMonths}
+	years={data.availableYears}
+	month={data.filters.month}
+	year={data.filters.year}
+/>
 
 {#if form?.error}
 	<p class="form-error">{form.error}</p>
 {/if}
 
-<Modal bind:open={showAddModal} title="New income stream">
-	{#if form?.error}
-		<p class="form-error">{form.error}</p>
-	{/if}
-	<form
-		class="stream-form"
-		method="POST"
-		action="?/createStream"
-		use:enhance={() =>
-			async ({ result, update }) => {
-				await update();
-				if (result.type === 'success') showAddModal = false;
-			}}
-	>
+{#snippet paycheckFields(paycheck: Paycheck | null, idPrefix: string)}
+	<div class="paycheck-form__grid">
 		<div class="field">
-			<label class="field__label" for="title">Income stream</label>
-			<input class="field__input" id="title" name="title" required placeholder="e.g. Salary" />
+			<label class="field__label" for="{idPrefix}-title">Source</label>
+			<input
+				class="field__input"
+				id="{idPrefix}-title"
+				name="title"
+				required
+				placeholder="e.g. Acme payroll"
+				value={paycheck?.title ?? ''}
+			/>
 		</div>
 		<div class="field">
-			<label class="field__label" for="amount">Gross amount</label>
-			<input class="field__input" id="amount" name="amount" required placeholder="e.g. 5,000.00" />
+			<label class="field__label" for="{idPrefix}-gross">Gross amount</label>
+			<input
+				class="field__input"
+				id="{idPrefix}-gross"
+				name="gross"
+				required
+				placeholder="e.g. 5,000.00"
+				value={paycheck ? dollars(paycheck.grossCents) : ''}
+			/>
 		</div>
 		<div class="field">
-			<label class="field__label" for="owner">Owner</label>
-			<select class="field__input" id="owner" name="owner">
+			<label class="field__label" for="{idPrefix}-date">Date</label>
+			<input
+				class="field__input"
+				id="{idPrefix}-date"
+				name="date"
+				type="date"
+				required
+				value={paycheck?.date ?? data.today}
+			/>
+		</div>
+		<div class="field">
+			<label class="field__label" for="{idPrefix}-owner">Owner</label>
+			<select class="field__input" id="{idPrefix}-owner" name="owner">
 				{#each OWNERS as owner}
-					<option value={owner}>{owner}</option>
+					<option value={owner} selected={owner === (paycheck?.owner ?? 'me')}>{owner}</option>
 				{/each}
 			</select>
 		</div>
-		<button class="button" type="submit">Add</button>
-	</form>
+	</div>
+	<div class="field">
+		<label class="field__label" for="{idPrefix}-notes">Notes (optional)</label>
+		<textarea class="field__input" id="{idPrefix}-notes" name="notes" rows="2" placeholder="Optional"
+			>{paycheck?.notes ?? ''}</textarea>
+	</div>
+{/snippet}
+
+<Modal bind:open={showAddModal} title="New paycheck">
+	{#if form?.error}
+		<p class="form-error">{form.error}</p>
+	{/if}
+	{#key showAddModal}
+		<form
+			method="POST"
+			action="?/createPaycheck"
+			use:enhance={() =>
+				async ({ result, update }) => {
+					await update();
+					if (result.type === 'success') showAddModal = false;
+				}}
+		>
+			{@render paycheckFields(null, 'new')}
+			<p class="hint">Deductions and fund allocations are added from the paycheck's detail panel.</p>
+			<button class="button" type="submit">Add paycheck</button>
+		</form>
+	{/key}
+</Modal>
+
+<Modal bind:open={showEditModal} title="Edit paycheck">
+	{#if form?.error}
+		<p class="form-error">{form.error}</p>
+	{/if}
+	<!-- Key on the open flag too: the post-save form reset empties the DOM inputs,
+	     so reopening the same paycheck must remount the form with fresh values. -->
+	{#key `${showEditModal}-${editing?.id}`}
+		{#if editing}
+			<form
+				method="POST"
+				action="?/updatePaycheck"
+				use:enhance={() =>
+					async ({ result, update }) => {
+						await update();
+						if (result.type === 'success') showEditModal = false;
+					}}
+			>
+				<input type="hidden" name="id" value={editing.id} />
+				{@render paycheckFields(editing, `edit-${editing.id}`)}
+				<button class="button" type="submit">Save changes</button>
+			</form>
+		{/if}
+	{/key}
+</Modal>
+
+<Modal bind:open={showDuplicateModal} title="Duplicate paycheck">
+	{#if form?.error}
+		<p class="form-error">{form.error}</p>
+	{/if}
+	{#key showDuplicateModal}
+	{#if duplicating}
+		<p class="hint">
+			Copies “{duplicating.title}” ({formatCents(duplicating.grossCents)} gross) with
+			{duplicating.deductions.length}
+			{duplicating.deductions.length === 1 ? 'deduction' : 'deductions'} and
+			{duplicating.allocations.length} fund
+			{duplicating.allocations.length === 1 ? 'allocation' : 'allocations'}. Adjust the source and date below.
+		</p>
+		<form
+			method="POST"
+			action="?/duplicatePaycheck"
+			use:enhance={() =>
+				async ({ result, update }) => {
+					await update();
+					if (result.type === 'success') showDuplicateModal = false;
+				}}
+		>
+			<input type="hidden" name="id" value={duplicating.id} />
+			<div class="field">
+				<label class="field__label" for="duplicate-title">Source</label>
+				<input
+					class="field__input"
+					id="duplicate-title"
+					name="title"
+					required
+					value={duplicating.title}
+				/>
+			</div>
+			<div class="field">
+				<label class="field__label" for="duplicate-date">New date</label>
+				<input
+					class="field__input"
+					id="duplicate-date"
+					name="date"
+					type="date"
+					required
+					value={data.today}
+				/>
+			</div>
+			<button class="button" type="submit">Duplicate</button>
+		</form>
+	{/if}
+	{/key}
 </Modal>
 
 <div class="card">
-	{#if data.streams.length === 0}
-		<p class="empty-state">No income streams yet.</p>
+	{#if data.paychecks.length === 0}
+		<p class="empty-state">
+			{#if data.filters.month || data.filters.year}
+				No paychecks match the current filters.
+			{:else}
+				No paychecks yet.
+			{/if}
+		</p>
 	{:else}
 		<table class="table">
 			<thead>
 				<tr class="table__head">
 					<th class="table__cell--caret"></th>
-					<th>Stream</th>
+					<th>Date</th>
+					<th>Source</th>
 					<th>Owner</th>
 					<th class="table__cell--number">Gross</th>
-					<th class="table__cell--number">Deductions</th>
 					<th class="table__cell--number">Net</th>
+					<th class="table__cell--number">Allocated</th>
 					<th></th>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.streams as stream (stream.id)}
-					{#if editingId === stream.id}
-						<tr>
-							<td colspan="7">
+				{#each data.paychecks as paycheck (paycheck.id)}
+					<tr>
+						<td class="table__cell--caret">
+							<button
+								class="caret"
+								class:caret--open={expandedId === paycheck.id}
+								type="button"
+								aria-expanded={expandedId === paycheck.id}
+								aria-label="Toggle deductions and allocations for {paycheck.title}"
+								onclick={() => toggleExpanded(paycheck.id)}
+							>
+								▸
+							</button>
+						</td>
+						<td>{formatDate(paycheck.date)}</td>
+						<td>{paycheck.title}</td>
+						<td>{paycheck.owner}</td>
+						<td class="table__cell--number">{formatCents(paycheck.grossCents)}</td>
+						<td class="table__cell--number">{formatCents(netCents(paycheck))}</td>
+						<td class="table__cell--number">{formatCents(allocatedCents(paycheck))}</td>
+						<td>
+							{#if deletingId === paycheck.id}
 								<form
-									class="stream-form"
+									class="inline-form"
 									method="POST"
-									action="?/updateStream"
+									action="?/deletePaycheck"
 									use:enhance={() =>
 										({ update }) => {
-											editingId = null;
+											deletingId = null;
 											update();
 										}}
 								>
-									<input type="hidden" name="id" value={stream.id} />
-									<div class="field">
-										<label class="field__label" for="edit-title-{stream.id}">Income stream</label>
-										<input
-											class="field__input"
-											id="edit-title-{stream.id}"
-											name="title"
-											required
-											value={stream.title}
-										/>
-									</div>
-									<div class="field">
-										<label class="field__label" for="edit-amount-{stream.id}">Gross amount</label>
-										<input
-											class="field__input"
-											id="edit-amount-{stream.id}"
-											name="amount"
-											required
-											value={dollars(stream.amountCents)}
-										/>
-									</div>
-									<div class="field">
-										<label class="field__label" for="edit-owner-{stream.id}">Owner</label>
-										<select class="field__input" id="edit-owner-{stream.id}" name="owner">
-											{#each OWNERS as owner}
-												<option value={owner} selected={owner === stream.owner}>{owner}</option>
-											{/each}
-										</select>
-									</div>
-									<button class="button" type="submit">Save</button>
+									<input type="hidden" name="id" value={paycheck.id} />
 									<button
-										class="button button--ghost"
+										class="link-action"
 										type="button"
-										onclick={() => (editingId = null)}
+										onclick={() => (deletingId = null)}
 									>
 										Cancel
 									</button>
+                  <button class="link-action link-action--danger" type="submit">Confirm</button>
 								</form>
-							</td>
-						</tr>
-					{:else}
-						<tr>
-							<td class="table__cell--caret">
-								<button
-									class="caret"
-									class:caret--open={expandedId === stream.id}
-									type="button"
-									aria-expanded={expandedId === stream.id}
-									aria-label="Toggle deductions for {stream.title}"
-									onclick={() => toggleExpanded(stream.id)}
-								>
-									▸
-								</button>
-							</td>
-							<td>{stream.title}</td>
-							<td>{stream.owner}</td>
-							<td class="table__cell--number">{formatCents(stream.amountCents)}</td>
-							<td class="table__cell--number">{stream.deductions.length}</td>
-							<td class="table__cell--number">{formatCents(netCents(stream))}</td>
-							<td>
-								{#if deletingId === stream.id}
-									<form
-										class="inline-form"
-										method="POST"
-										action="?/deleteStream"
-										use:enhance={() =>
-											({ update }) => {
-												deletingId = null;
-												update();
-											}}
+							{:else}
+								<div class="inline-form">
+									<button class="link-action" type="button" onclick={() => openEdit(paycheck)}>
+										Edit
+									</button>
+									<button
+										class="link-action"
+										type="button"
+										onclick={() => openDuplicate(paycheck)}
 									>
-										<input type="hidden" name="id" value={stream.id} />
-										<span class="confirm-text">
-											Delete{stream.deductions.length > 0
-												? ` and its ${stream.deductions.length} deduction${stream.deductions.length > 1 ? 's' : ''}`
-												: ''}?
-										</span>
-										<button class="button button--danger" type="submit">Confirm</button>
-										<button
-											class="button button--ghost"
-											type="button"
-											onclick={() => (deletingId = null)}
-										>
-											Cancel
-										</button>
-									</form>
-								{:else}
-									<div class="inline-form">
-										<button
-											class="button button--ghost"
-											type="button"
-											onclick={() => {
-												editingId = stream.id;
-												deletingId = null;
-											}}
-										>
-											Edit
-										</button>
-										<button
-											class="button button--ghost"
-											type="button"
-											onclick={() => (deletingId = stream.id)}
-										>
-											Delete
-										</button>
-									</div>
-								{/if}
-							</td>
-						</tr>
-					{/if}
+										Duplicate
+									</button>
+									<button
+										class="link-action link-action--danger"
+										type="button"
+										onclick={() => (deletingId = paycheck.id)}
+									>
+										Delete
+									</button>
+								</div>
+							{/if}
+						</td>
+					</tr>
 
-					{#if expandedId === stream.id}
+					{#if expandedId === paycheck.id}
 						<tr class="detail-row">
-							<td colspan="7">
-								<div class="deductions">
-									<h3 class="deductions__title">Deductions</h3>
+							<td colspan="8">
+								<div class="detail">
+									<section class="detail__section">
+										<h3 class="detail__title">Deductions</h3>
 
-									{#if stream.deductions.length === 0}
-										<p class="deductions__empty">No deductions on this stream yet.</p>
-									{:else}
-										<table class="table deductions__list">
-											<tbody>
-												{#each stream.deductions as deduction (deduction.id)}
-													{#if editingDeductionId === deduction.id}
-														<tr>
-															<td colspan="4">
-																<form
-																	class="deduction-form"
-																	method="POST"
-																	action="?/updateDeduction"
-																	use:enhance={() =>
-																		({ update }) => {
-																			editingDeductionId = null;
-																			update();
-																		}}
-																>
-																	<input type="hidden" name="id" value={deduction.id} />
-																	<div class="field">
-																		<label class="field__label" for="ded-edit-title-{deduction.id}">
-																			Deduction
-																		</label>
-																		<input
-																			class="field__input"
-																			id="ded-edit-title-{deduction.id}"
-																			name="title"
-																			required
-																			value={deduction.title}
-																		/>
-																	</div>
-																	<div class="field">
-																		<label class="field__label" for="ded-edit-kind-{deduction.id}">Type</label>
-																		<select
-																			class="field__input"
-																			id="ded-edit-kind-{deduction.id}"
-																			name="kind"
-																			bind:value={editDeductionKind}
-																		>
-																			<option value="fixed">Fixed ($)</option>
-																			<option value="percent">Percent (%)</option>
-																		</select>
-																	</div>
-																	<div class="field">
-																		<label class="field__label" for="ded-edit-value-{deduction.id}">
-																			{editDeductionKind === 'percent' ? 'Percentage' : 'Amount'}
-																		</label>
-																		<input
-																			class="field__input"
-																			id="ded-edit-value-{deduction.id}"
-																			name="value"
-																			required
-																			value={deduction.kind === 'percent'
-																				? deduction.value / 100
-																				: dollars(deduction.value)}
-																		/>
-																	</div>
-																	<button class="button" type="submit">Save</button>
-																	<button
-																		class="button button--ghost"
-																		type="button"
-																		onclick={() => (editingDeductionId = null)}
+										{#if paycheck.deductions.length === 0}
+											<p class="detail__empty">No deductions on this paycheck yet.</p>
+										{:else}
+											<table class="table detail__list">
+												<tbody>
+													{#each paycheck.deductions as deduction (deduction.id)}
+														{#if editingDeductionId === deduction.id}
+															<tr>
+																<td colspan="5">
+																	<form
+																		class="rule-form"
+																		method="POST"
+																		action="?/updateDeduction"
+																		use:enhance={() =>
+																			({ update }) => {
+																				editingDeductionId = null;
+																				update();
+																			}}
 																	>
-																		Cancel
-																	</button>
-																</form>
-															</td>
-														</tr>
-													{:else}
-														<tr>
-															<td>{deduction.title}</td>
-															<td>
-																<span class="badge">{deduction.kind}</span>
-															</td>
-															<td class="table__cell--number">
-																{deduction.kind === 'percent'
-																	? formatBps(deduction.value)
-																	: formatCents(deduction.value)}
-															</td>
-															<td class="table__cell--number">
-																<div class="inline-form">
-																	<button
-																		class="button button--ghost"
-																		type="button"
-																		onclick={() => startEditDeduction(deduction.id, deduction.kind)}
-																	>
-																		Edit
-																	</button>
-																	<form method="POST" action="?/deleteDeduction" use:enhance>
 																		<input type="hidden" name="id" value={deduction.id} />
-																		<button class="button button--ghost" type="submit">Remove</button>
+																		<div class="field">
+																			<label class="field__label" for="ded-edit-title-{deduction.id}">
+																				Deduction
+																			</label>
+																			<input
+																				class="field__input"
+																				id="ded-edit-title-{deduction.id}"
+																				name="title"
+																				required
+																				value={deduction.title}
+																			/>
+																		</div>
+																		<div class="field">
+																			<label class="field__label" for="ded-edit-kind-{deduction.id}">
+																				Type
+																			</label>
+																			<select
+																				class="field__input"
+																				id="ded-edit-kind-{deduction.id}"
+																				name="kind"
+																				bind:value={editDeductionKind}
+																			>
+																				<option value="fixed">Fixed ($)</option>
+																				<option value="percent">Percent (%)</option>
+																			</select>
+																		</div>
+																		{#if editDeductionKind === 'percent'}
+																			<div class="field">
+																				<label class="field__label" for="ded-edit-basis-{deduction.id}">
+																					Basis
+																				</label>
+																				<select
+																					class="field__input"
+																					id="ded-edit-basis-{deduction.id}"
+																					name="basis"
+																					bind:value={editDeductionBasis}
+																				>
+																					<option value="gross">% of gross</option>
+																					<option value="net">% of net</option>
+																				</select>
+																			</div>
+																		{/if}
+																		<div class="field">
+																			<label class="field__label" for="ded-edit-value-{deduction.id}">
+																				{editDeductionKind === 'percent' ? 'Percentage' : 'Amount'}
+																			</label>
+																			<input
+																				class="field__input"
+																				id="ded-edit-value-{deduction.id}"
+																				name="value"
+																				required
+																				value={deduction.kind === 'percent'
+																					? deduction.value / 100
+																					: dollars(deduction.value)}
+																			/>
+																		</div>
+																		<button class="button" type="submit">Save</button>
+																		<button
+																			class="link-action"
+																			type="button"
+																			onclick={() => (editingDeductionId = null)}
+																		>
+																			Cancel
+																		</button>
 																	</form>
-																</div>
-															</td>
-														</tr>
-													{/if}
-												{/each}
-											</tbody>
-										</table>
-									{/if}
+																</td>
+															</tr>
+														{:else}
+															<tr>
+																<td>{deduction.title}</td>
+																<td><span class="badge">{ruleLabel(deduction)}</span></td>
+																<td class="table__cell--number">
+																	−{formatCents(deduction.resolvedCents)}
+																</td>
+																<td class="table__cell--number">
+																	<div class="inline-form">
+																		<button
+																			class="link-action"
+																			type="button"
+																			onclick={() => startEditDeduction(deduction)}
+																		>
+																			Edit
+																		</button>
+																		<form method="POST" action="?/deleteDeduction" use:enhance>
+																			<input type="hidden" name="id" value={deduction.id} />
+																			<button class="link-action" type="submit">Remove</button>
+																		</form>
+																	</div>
+																</td>
+															</tr>
+														{/if}
+													{/each}
+												</tbody>
+											</table>
+										{/if}
 
-									<form
-										class="deduction-form"
-										method="POST"
-										action="?/createDeduction"
-										use:enhance
-									>
-										<input type="hidden" name="incomeStreamId" value={stream.id} />
-										<div class="field">
-											<label class="field__label" for="ded-title-{stream.id}">New deduction</label>
-											<input
-												class="field__input"
-												id="ded-title-{stream.id}"
-												name="title"
-												required
-												placeholder="e.g. Federal tax"
-											/>
-										</div>
-										<div class="field">
-											<label class="field__label" for="ded-kind-{stream.id}">Type</label>
-											<select
-												class="field__input"
-												id="ded-kind-{stream.id}"
-												name="kind"
-												bind:value={newDeductionKind}
-											>
-												<option value="fixed">Fixed ($)</option>
-												<option value="percent">Percent (%)</option>
-											</select>
-										</div>
-										<div class="field">
-											<label class="field__label" for="ded-value-{stream.id}">
-												{newDeductionKind === 'percent' ? 'Percentage' : 'Amount'}
-											</label>
-											<input
-												class="field__input"
-												id="ded-value-{stream.id}"
-												name="value"
-												required
-												placeholder={newDeductionKind === 'percent' ? 'e.g. 6.5' : 'e.g. 250.00'}
-											/>
-										</div>
-										<button class="button" type="submit">Add deduction</button>
-									</form>
+										<form class="rule-form" method="POST" action="?/createDeduction" use:enhance>
+											<input type="hidden" name="paycheckId" value={paycheck.id} />
+											<div class="field">
+												<label class="field__label" for="ded-title-{paycheck.id}">New deduction</label>
+												<input
+													class="field__input"
+													id="ded-title-{paycheck.id}"
+													name="title"
+													required
+													placeholder="e.g. Federal tax"
+												/>
+											</div>
+											<div class="field">
+												<label class="field__label" for="ded-kind-{paycheck.id}">Type</label>
+												<select
+													class="field__input"
+													id="ded-kind-{paycheck.id}"
+													name="kind"
+													bind:value={newDeductionKind}
+												>
+													<option value="fixed">Fixed ($)</option>
+													<option value="percent">Percent (%)</option>
+												</select>
+											</div>
+											{#if newDeductionKind === 'percent'}
+												<div class="field">
+													<label class="field__label" for="ded-basis-{paycheck.id}">Basis</label>
+													<select
+														class="field__input"
+														id="ded-basis-{paycheck.id}"
+														name="basis"
+														bind:value={newDeductionBasis}
+													>
+														<option value="gross">% of gross</option>
+														<option value="net">% of net</option>
+													</select>
+												</div>
+											{/if}
+											<div class="field">
+												<label class="field__label" for="ded-value-{paycheck.id}">
+													{newDeductionKind === 'percent' ? 'Percentage' : 'Amount'}
+												</label>
+												<input
+													class="field__input"
+													id="ded-value-{paycheck.id}"
+													name="value"
+													required
+													placeholder={newDeductionKind === 'percent' ? 'e.g. 6.5' : 'e.g. 250.00'}
+												/>
+											</div>
+											<button class="button" type="submit">Add deduction</button>
+										</form>
+										{#if newDeductionKind === 'percent' && newDeductionBasis === 'net'}
+											<p class="hint">Net % applies after fixed and gross-% deductions.</p>
+										{/if}
+									</section>
+
+									<section class="detail__section">
+										<h3 class="detail__title">Fund allocations</h3>
+
+										{#if data.funds.length === 0}
+											<p class="detail__empty">No funds yet — add them on the Funds page.</p>
+										{:else}
+											{#if paycheck.allocations.length === 0}
+												<p class="detail__empty">
+													Nothing funneled into funds from this paycheck yet.
+												</p>
+											{:else}
+												<table class="table detail__list">
+													<tbody>
+														{#each paycheck.allocations as allocation (allocation.id)}
+															{#if editingAllocationId === allocation.id}
+																<tr>
+																	<td colspan="5">
+																		<form
+																			class="rule-form"
+																			method="POST"
+																			action="?/updateAllocation"
+																			use:enhance={() =>
+																				({ update }) => {
+																					editingAllocationId = null;
+																					update();
+																				}}
+																		>
+																			<input type="hidden" name="id" value={allocation.id} />
+																			<div class="field">
+																				<label
+																					class="field__label"
+																					for="alloc-edit-fund-{allocation.id}"
+																				>
+																					Fund
+																				</label>
+																				<select
+																					class="field__input"
+																					id="alloc-edit-fund-{allocation.id}"
+																					name="fundId"
+																				>
+																					{#each data.funds as fund}
+																						<option
+																							value={fund.id}
+																							selected={fund.id === allocation.fundId}
+																						>
+																							{fund.name}
+																						</option>
+																					{/each}
+																				</select>
+																			</div>
+																			<div class="field">
+																				<label
+																					class="field__label"
+																					for="alloc-edit-kind-{allocation.id}"
+																				>
+																					Type
+																				</label>
+																				<select
+																					class="field__input"
+																					id="alloc-edit-kind-{allocation.id}"
+																					name="kind"
+																					bind:value={editAllocationKind}
+																				>
+																					<option value="fixed">Fixed ($)</option>
+																					<option value="percent">Percent (%)</option>
+																				</select>
+																			</div>
+																			{#if editAllocationKind === 'percent'}
+																				<div class="field">
+																					<label
+																						class="field__label"
+																						for="alloc-edit-basis-{allocation.id}"
+																					>
+																						Basis
+																					</label>
+																					<select
+																						class="field__input"
+																						id="alloc-edit-basis-{allocation.id}"
+																						name="basis"
+																						bind:value={editAllocationBasis}
+																					>
+																						<option value="gross">% of gross</option>
+																						<option value="net">% of net</option>
+																					</select>
+																				</div>
+																			{/if}
+																			<div class="field">
+																				<label
+																					class="field__label"
+																					for="alloc-edit-value-{allocation.id}"
+																				>
+																					{editAllocationKind === 'percent' ? 'Percentage' : 'Amount'}
+																				</label>
+																				<input
+																					class="field__input"
+																					id="alloc-edit-value-{allocation.id}"
+																					name="value"
+																					required
+																					value={allocation.kind === 'percent'
+																						? allocation.value / 100
+																						: dollars(allocation.value)}
+																				/>
+																			</div>
+																			<button class="button" type="submit">Save</button>
+																			<button
+																				class="link-action"
+																				type="button"
+																				onclick={() => (editingAllocationId = null)}
+																			>
+																				Cancel
+																			</button>
+																		</form>
+																	</td>
+																</tr>
+															{:else}
+																<tr>
+																	<td>{allocation.fund.name}</td>
+																	<td><span class="badge">{ruleLabel(allocation)}</span></td>
+																	<td class="table__cell--number">
+																		{formatCents(allocation.resolvedCents)}
+																	</td>
+																	<td class="table__cell--number">
+																		<div class="inline-form">
+																			<button
+																				class="link-action"
+																				type="button"
+																				onclick={() => startEditAllocation(allocation)}
+																			>
+																				Edit
+																			</button>
+																			<form method="POST" action="?/deleteAllocation" use:enhance>
+																				<input type="hidden" name="id" value={allocation.id} />
+																				<button class="link-action" type="submit">
+																					Remove
+																				</button>
+																			</form>
+																		</div>
+																	</td>
+																</tr>
+															{/if}
+														{/each}
+													</tbody>
+												</table>
+											{/if}
+
+											<form class="rule-form" method="POST" action="?/createAllocation" use:enhance>
+												<input type="hidden" name="paycheckId" value={paycheck.id} />
+												<div class="field">
+													<label class="field__label" for="alloc-fund-{paycheck.id}">Fund</label>
+													<select class="field__input" id="alloc-fund-{paycheck.id}" name="fundId">
+														{#each data.funds as fund}
+															<option value={fund.id}>{fund.name}</option>
+														{/each}
+													</select>
+												</div>
+												<div class="field">
+													<label class="field__label" for="alloc-kind-{paycheck.id}">Type</label>
+													<select
+														class="field__input"
+														id="alloc-kind-{paycheck.id}"
+														name="kind"
+														bind:value={newAllocationKind}
+													>
+														<option value="fixed">Fixed ($)</option>
+														<option value="percent">Percent (%)</option>
+													</select>
+												</div>
+												{#if newAllocationKind === 'percent'}
+													<div class="field">
+														<label class="field__label" for="alloc-basis-{paycheck.id}">Basis</label>
+														<select
+															class="field__input"
+															id="alloc-basis-{paycheck.id}"
+															name="basis"
+															bind:value={newAllocationBasis}
+														>
+															<option value="net">% of net</option>
+															<option value="gross">% of gross</option>
+														</select>
+													</div>
+												{/if}
+												<div class="field">
+													<label class="field__label" for="alloc-value-{paycheck.id}">
+														{newAllocationKind === 'percent' ? 'Percentage' : 'Amount'}
+													</label>
+													<input
+														class="field__input"
+														id="alloc-value-{paycheck.id}"
+														name="value"
+														required
+														placeholder={newAllocationKind === 'percent' ? 'e.g. 10' : 'e.g. 500.00'}
+													/>
+												</div>
+												<button class="button" type="submit">Add allocation</button>
+											</form>
+
+											<p class="hint">
+												{formatCents(netCents(paycheck) - allocatedCents(paycheck))} of net remains
+												unallocated.
+											</p>
+										{/if}
+									</section>
 								</div>
 							</td>
 						</tr>
@@ -396,17 +738,20 @@
 <style lang="scss">
 	@use 'variables' as *;
 
-	.stream-form {
-		display: flex;
-		align-items: flex-end;
+	.paycheck-form__grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 		gap: $space-md;
-		flex-wrap: wrap;
+		margin-bottom: $space-md;
 
 		.field {
-			flex: 1;
-			min-width: 140px;
 			margin-bottom: 0;
 		}
+	}
+
+	textarea.field__input {
+		resize: vertical;
+		min-height: 3rem;
 	}
 
 	.inline-form {
@@ -446,7 +791,15 @@
 		padding: $space-md $space-lg;
 	}
 
-	.deductions {
+	.detail {
+		display: flex;
+		flex-direction: column;
+		gap: $space-lg;
+
+		&__section {
+			margin: 0;
+		}
+
 		&__title {
 			font-size: $text-base;
 			margin-bottom: $space-sm;
@@ -469,12 +822,14 @@
 		display: inline-block;
 		padding: 0.1rem $space-sm;
 		border-radius: $radius;
-		background: $color-border;
+		background: $color-surface-raised;
+		border: 1px solid $color-border;
 		color: $color-text-muted;
 		font-size: $text-sm;
+		white-space: nowrap;
 	}
 
-	.deduction-form {
+	.rule-form {
 		display: flex;
 		align-items: flex-end;
 		gap: $space-md;
@@ -482,9 +837,15 @@
 
 		.field {
 			flex: 1;
-			min-width: 140px;
+			min-width: 130px;
 			margin-bottom: 0;
 		}
+	}
+
+	.hint {
+		margin: $space-sm 0 0;
+		color: $color-text-muted;
+		font-size: $text-sm;
 	}
 
 	.form-error {

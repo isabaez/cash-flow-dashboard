@@ -10,7 +10,10 @@
 		"start": "node build",
 		"check": "svelte-check --tsconfig ./tsconfig.json",
 		"db:push": "drizzle-kit push",
-		"db:studio": "drizzle-kit studio"
+		"db:studio": "drizzle-kit studio",
+		"docker:up": "./start.sh",
+		"docker:down": "docker compose down",
+		"docker:logs": "docker compose logs -f app"
 	},
 	"dependencies": {
 		"better-sqlite3": "^11.5.0",

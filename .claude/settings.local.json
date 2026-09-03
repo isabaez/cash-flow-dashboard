@@ -3,7 +3,11 @@
     "allow": [
       "Skill(run)",
       "Skill(run:*)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(echo \"PULL_EXIT=$?\")",
+      "Bash(node -e ' *)",
+      "Bash(curl -s -o resp.json -w \"HTTP %{http_code}\\\\n\" -X POST http://localhost:3000/expenses/import -H 'content-type: application/json' --data-binary @big.json)"
     ]
   }
 }

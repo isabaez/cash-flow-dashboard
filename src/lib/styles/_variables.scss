@@ -1,16 +1,19 @@
-// Design tokens
+// Design tokens — dark theme
 // Usage in components: @use 'variables' as *;  (loadPaths is configured in vite.config.ts)
 
 // Colors
-$color-bg: #f6f7f9;
-$color-surface: #ffffff;
-$color-border: #e2e5ea;
-$color-text: #1f2430;
-$color-text-muted: #6b7280;
-$color-primary: #2563eb;
-$color-primary-hover: #1d4ed8;
-$color-danger: #dc2626;
-$color-success: #16a34a;
+$color-bg: #0b0e14;
+$color-surface: #12161f;
+$color-surface-raised: #1a2029;
+$color-border: #232b38;
+$color-text: #e7eaf0;
+$color-text-muted: #97a0b3;
+$color-primary: #7c9aff;
+$color-primary-hover: #97afff;
+$color-on-primary: #0b0e14;
+$color-danger: #f2555a;
+$color-danger-hover: #ff6b70;
+$color-success: #3dd68c;
 
 // Spacing
 $space-xs: 0.25rem;
@@ -28,6 +31,7 @@ $text-lg: 1.25rem;
 $text-xl: 1.75rem;
 
 // Misc
-$radius: 8px;
-$shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-$sidebar-width: 220px;
+$radius: 10px;
+$shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
+$header-height: 56px;
+$breakpoint-md: 768px;

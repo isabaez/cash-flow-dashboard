@@ -1,26 +1,76 @@
 import { db } from '$lib/server/db';
-import { expenses, expenseIncomeStreams } from '$lib/server/db/schema';
-import { eq } from 'drizzle-orm';
+import { expenseCategories, expenses, funds, fundWithdrawals } from '$lib/server/db/schema';
+import { and, desc, eq, exists, inArray, like, sql } from 'drizzle-orm';
 import { fail } from '@sveltejs/kit';
 import { parseDollars } from '$lib/money';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async () => {
-	const [expenseRows, categoryRows, streamRows] = await Promise.all([
+export const load: PageServerLoad = async ({ url }) => {
+	const monthRaw = url.searchParams.get('month');
+	const yearRaw = url.searchParams.get('year');
+
+	// Invalid params fall back to unfiltered.
+	const month = monthRaw && /^\d{4}-\d{2}$/.test(monthRaw) ? monthRaw : null;
+	const year = !month && yearRaw && /^\d{4}$/.test(yearRaw) ? yearRaw : null;
+	// Repeated ?category params combine as AND — an expense must carry every one.
+	const categoryIds = [
+		...new Set(
+			url.searchParams
+				.getAll('category')
+				.filter((v) => /^\d+$/.test(v))
+				.map(Number)
+		)
+	];
+
+	const conditions = [];
+	if (month) conditions.push(like(expenses.date, `${month}-%`));
+	else if (year) conditions.push(like(expenses.date, `${year}-%`));
+	for (const categoryId of categoryIds) {
+		conditions.push(
+			exists(
+				db
+					.select({ one: sql`1` })
+					.from(expenseCategories)
+					.where(
+						and(
+							eq(expenseCategories.expenseId, expenses.id),
+							eq(expenseCategories.categoryId, categoryId)
+						)
+					)
+			)
+		);
+	}
+	const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+	const monthCol = sql<string>`substr(${expenses.date}, 1, 7)`;
+	const yearCol = sql<string>`substr(${expenses.date}, 1, 4)`;
+
+	const [expenseRows, categoryRows, fundRows, monthRows, yearRows] = await Promise.all([
 		db.query.expenses.findMany({
 			with: {
-				category: true,
-				incomeStreamLinks: { with: { incomeStream: true } }
+				categoryLinks: { with: { category: true } },
+				fundWithdrawals: { with: { fund: true } }
 			},
-			orderBy: (e, { desc }) => [desc(e.date)],
-			limit: 100
+			where,
+			orderBy: (e, { desc: d }) => [d(e.date), d(e.id)],
+			limit: 200
 		}),
 		db.query.categories.findMany({ orderBy: (c, { asc }) => [asc(c.name)] }),
-		db.query.incomeStreams.findMany({ orderBy: (s, { asc }) => [asc(s.title)] })
+		db.query.funds.findMany({ orderBy: (f, { asc }) => [asc(f.name)] }),
+		db.selectDistinct({ month: monthCol }).from(expenses).orderBy(desc(monthCol)),
+		db.selectDistinct({ year: yearCol }).from(expenses).orderBy(desc(yearCol))
 	]);
 
 	const today = new Date().toISOString().slice(0, 10);
-	return { expenses: expenseRows, categories: categoryRows, streams: streamRows, today };
+	return {
+		expenses: expenseRows,
+		categories: categoryRows,
+		funds: fundRows,
+		availableMonths: monthRows.map((r) => r.month),
+		availableYears: yearRows.map((r) => r.year),
+		filters: { month, year, categoryIds },
+		today
+	};
 };
 
 /** Read + validate the shared expense fields from a submitted form. */
@@ -28,36 +78,77 @@ function readExpense(form: FormData) {
 	const title = String(form.get('title') ?? '').trim();
 	const date = String(form.get('date') ?? '').trim();
 	const amountCents = parseDollars(String(form.get('amount') ?? ''));
-	const categoryRaw = form.get('categoryId');
-	const categoryId = categoryRaw ? Number(categoryRaw) : null;
 	const notes = String(form.get('notes') ?? '').trim() || null;
-	const incomeStreamIds = form
-		.getAll('incomeStreamId')
+	const fundRaw = form.get('fundId');
+	const fundId = fundRaw ? Number(fundRaw) : null;
+	const categoryIds = form
+		.getAll('categoryId')
 		.map((v) => Number(v))
 		.filter((n) => Number.isFinite(n) && n > 0);
 
 	if (!title) return { error: 'Title is required' as const };
-	if (amountCents === null || amountCents < 0)
-		return { error: 'Enter a valid amount' as const };
+	if (amountCents === null || amountCents < 0) return { error: 'Enter a valid amount' as const };
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: 'A valid date is required' as const };
+	if (fundId !== null && !Number.isFinite(fundId)) return { error: 'Invalid fund' as const };
 
-	return { values: { title, date, amountCents, categoryId, notes }, incomeStreamIds };
+	return { values: { title, date, amountCents, notes }, categoryIds, fundId };
+}
+
+/**
+ * Make the fund withdrawal mirroring an expense match the expense's current
+ * state: created, moved to another fund, kept in sync, or removed.
+ * Must run inside the same transaction as the expense mutation.
+ */
+function syncExpenseWithdrawal(
+	tx: Parameters<Parameters<(typeof db)['transaction']>[0]>[0],
+	expenseId: number,
+	fundId: number | null,
+	values: { title: string; date: string; amountCents: number }
+): void {
+	const existing = tx
+		.select()
+		.from(fundWithdrawals)
+		.where(eq(fundWithdrawals.expenseId, expenseId))
+		.get();
+
+	if (fundId === null) {
+		if (existing) tx.delete(fundWithdrawals).where(eq(fundWithdrawals.id, existing.id)).run();
+		return;
+	}
+
+	const mirror = {
+		fundId,
+		amountCents: values.amountCents,
+		date: values.date,
+		notes: `Expense: ${values.title}`
+	};
+	if (existing) {
+		tx.update(fundWithdrawals).set(mirror).where(eq(fundWithdrawals.id, existing.id)).run();
+	} else {
+		tx.insert(fundWithdrawals).values({ ...mirror, expenseId }).run();
+	}
 }
 
 export const actions: Actions = {
 	create: async ({ request }) => {
 		const parsed = readExpense(await request.formData());
 		if ('error' in parsed) return fail(400, { error: parsed.error });
-		const { values, incomeStreamIds } = parsed;
+		const { values, categoryIds, fundId } = parsed;
+
+		if (fundId !== null) {
+			const fund = await db.query.funds.findFirst({ where: eq(funds.id, fundId) });
+			if (!fund) return fail(400, { error: 'Invalid fund' });
+		}
 
 		db.transaction((tx) => {
 			const { lastInsertRowid } = tx.insert(expenses).values(values).run();
 			const expenseId = Number(lastInsertRowid);
-			if (incomeStreamIds.length > 0) {
-				tx.insert(expenseIncomeStreams)
-					.values(incomeStreamIds.map((incomeStreamId) => ({ expenseId, incomeStreamId })))
+			if (categoryIds.length > 0) {
+				tx.insert(expenseCategories)
+					.values(categoryIds.map((categoryId) => ({ expenseId, categoryId })))
 					.run();
 			}
+			syncExpenseWithdrawal(tx, expenseId, fundId, values);
 		});
 		return { success: true };
 	},
@@ -69,28 +160,220 @@ export const actions: Actions = {
 
 		const parsed = readExpense(form);
 		if ('error' in parsed) return fail(400, { error: parsed.error });
-		const { values, incomeStreamIds } = parsed;
+		const { values, categoryIds, fundId } = parsed;
+
+		if (fundId !== null) {
+			const fund = await db.query.funds.findFirst({ where: eq(funds.id, fundId) });
+			if (!fund) return fail(400, { error: 'Invalid fund' });
+		}
 
 		db.transaction((tx) => {
 			tx.update(expenses).set(values).where(eq(expenses.id, id)).run();
-			// Replace the set of applied income streams.
-			tx.delete(expenseIncomeStreams).where(eq(expenseIncomeStreams.expenseId, id)).run();
-			if (incomeStreamIds.length > 0) {
-				tx.insert(expenseIncomeStreams)
-					.values(incomeStreamIds.map((incomeStreamId) => ({ expenseId: id, incomeStreamId })))
+			// Replace the set of applied categories.
+			tx.delete(expenseCategories).where(eq(expenseCategories.expenseId, id)).run();
+			if (categoryIds.length > 0) {
+				tx.insert(expenseCategories)
+					.values(categoryIds.map((categoryId) => ({ expenseId: id, categoryId })))
 					.run();
+			}
+			syncExpenseWithdrawal(tx, id, fundId, values);
+		});
+		return { success: true };
+	},
+
+	/** Apply one or more categories to a set of selected expenses, skipping links that already exist. */
+	applyCategories: async ({ request }) => {
+		const form = await request.formData();
+		const expenseIds = [
+			...new Set(
+				form
+					.getAll('expenseId')
+					.map((v) => Number(v))
+					.filter((n) => Number.isFinite(n) && n > 0)
+			)
+		];
+		const categoryIds = [
+			...new Set(
+				form
+					.getAll('categoryId')
+					.map((v) => Number(v))
+					.filter((n) => Number.isFinite(n) && n > 0)
+			)
+		];
+
+		if (expenseIds.length === 0) return fail(400, { error: 'Select at least one expense' });
+		if (categoryIds.length === 0) return fail(400, { error: 'Select at least one category' });
+
+		db.transaction((tx) => {
+			// Dedupe against existing links to respect the (expenseId, categoryId) unique constraint.
+			const existing = tx
+				.select()
+				.from(expenseCategories)
+				.where(inArray(expenseCategories.expenseId, expenseIds))
+				.all();
+			const seen = new Set(existing.map((l) => `${l.expenseId}:${l.categoryId}`));
+
+			const newPairs = [];
+			for (const expenseId of expenseIds) {
+				for (const categoryId of categoryIds) {
+					if (!seen.has(`${expenseId}:${categoryId}`)) newPairs.push({ expenseId, categoryId });
+				}
+			}
+			if (newPairs.length > 0) tx.insert(expenseCategories).values(newPairs).run();
+		});
+		return { success: true };
+	},
+
+	/** Remove one or more categories from a set of selected expenses; links that don't
+	 * exist are simply skipped by the delete. Inverse of applyCategories. */
+	removeCategories: async ({ request }) => {
+		const form = await request.formData();
+		const expenseIds = [
+			...new Set(
+				form
+					.getAll('expenseId')
+					.map((v) => Number(v))
+					.filter((n) => Number.isFinite(n) && n > 0)
+			)
+		];
+		const categoryIds = [
+			...new Set(
+				form
+					.getAll('categoryId')
+					.map((v) => Number(v))
+					.filter((n) => Number.isFinite(n) && n > 0)
+			)
+		];
+
+		if (expenseIds.length === 0) return fail(400, { error: 'Select at least one expense' });
+		if (categoryIds.length === 0) return fail(400, { error: 'Select at least one category' });
+
+		await db
+			.delete(expenseCategories)
+			.where(
+				and(
+					inArray(expenseCategories.expenseId, expenseIds),
+					inArray(expenseCategories.categoryId, categoryIds)
+				)
+			);
+		return { success: true };
+	},
+
+	/** Set (or move) the "paid from fund" value on all selected expenses. Each
+	 * expense's mirror withdrawal uses that expense's own amount/date/title. */
+	setFund: async ({ request }) => {
+		const form = await request.formData();
+		const expenseIds = [
+			...new Set(
+				form
+					.getAll('expenseId')
+					.map((v) => Number(v))
+					.filter((n) => Number.isFinite(n) && n > 0)
+			)
+		];
+		const fundRaw = form.get('fundId');
+		const fundId = fundRaw ? Number(fundRaw) : null;
+
+		if (expenseIds.length === 0) return fail(400, { error: 'Select at least one expense' });
+		if (fundId === null || !Number.isFinite(fundId)) return fail(400, { error: 'Select a fund' });
+
+		const fund = await db.query.funds.findFirst({ where: eq(funds.id, fundId) });
+		if (!fund) return fail(400, { error: 'Invalid fund' });
+
+		db.transaction((tx) => {
+			const rows = tx
+				.select({
+					id: expenses.id,
+					title: expenses.title,
+					date: expenses.date,
+					amountCents: expenses.amountCents
+				})
+				.from(expenses)
+				.where(inArray(expenses.id, expenseIds))
+				.all();
+			for (const e of rows) {
+				syncExpenseWithdrawal(tx, e.id, fundId, {
+					title: e.title,
+					date: e.date,
+					amountCents: e.amountCents
+				});
 			}
 		});
 		return { success: true };
 	},
 
-	/** Deleting an expense cascade-deletes its income-stream links (FK onDelete: 'cascade'). */
+	/** Clear the "paid from fund" value on all selected expenses by removing their
+	 * mirror withdrawals. Expenses with no fund are simply unaffected. */
+	removeFund: async ({ request }) => {
+		const form = await request.formData();
+		const expenseIds = [
+			...new Set(
+				form
+					.getAll('expenseId')
+					.map((v) => Number(v))
+					.filter((n) => Number.isFinite(n) && n > 0)
+			)
+		];
+
+		if (expenseIds.length === 0) return fail(400, { error: 'Select at least one expense' });
+
+		// Only mirror withdrawals carry a non-null expenseId, so this clears exactly
+		// the selected expenses' fund links and nothing else.
+		await db.delete(fundWithdrawals).where(inArray(fundWithdrawals.expenseId, expenseIds));
+		return { success: true };
+	},
+
+	/** Deleting an expense cascade-deletes its category links and any linked fund withdrawal. */
 	delete: async ({ request }) => {
 		const form = await request.formData();
 		const id = Number(form.get('id'));
 		if (!id) return fail(400, { error: 'Missing expense id' });
 
 		await db.delete(expenses).where(eq(expenses.id, id));
+		return { success: true };
+	},
+
+	/** Copy an expense (including its categories and fund pull) to a new date. */
+	duplicate: async ({ request }) => {
+		const form = await request.formData();
+		const id = Number(form.get('id'));
+		const date = String(form.get('date') ?? '').trim();
+		const title = String(form.get('title') ?? '').trim();
+		const amountCents = parseDollars(String(form.get('amount') ?? ''));
+
+		if (!id) return fail(400, { error: 'Missing expense id' });
+		if (!title) return fail(400, { error: 'Title is required' });
+		if (amountCents === null || amountCents < 0) return fail(400, { error: 'Enter a valid amount' });
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail(400, { error: 'A valid date is required' });
+
+		const source = await db.query.expenses.findFirst({
+			where: eq(expenses.id, id),
+			with: { categoryLinks: true, fundWithdrawals: true }
+		});
+		if (!source) return fail(404, { error: 'Expense not found' });
+
+		db.transaction((tx) => {
+			const { lastInsertRowid } = tx
+				.insert(expenses)
+				.values({
+					title,
+					amountCents,
+					date,
+					notes: source.notes
+				})
+				.run();
+			const expenseId = Number(lastInsertRowid);
+			if (source.categoryLinks.length > 0) {
+				tx.insert(expenseCategories)
+					.values(source.categoryLinks.map((l) => ({ expenseId, categoryId: l.categoryId })))
+					.run();
+			}
+			syncExpenseWithdrawal(tx, expenseId, source.fundWithdrawals[0]?.fundId ?? null, {
+				title,
+				date,
+				amountCents
+			});
+		});
 		return { success: true };
 	}
 };
