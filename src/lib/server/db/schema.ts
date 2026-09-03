@@ -110,6 +110,25 @@ export const fundWithdrawals = sqliteTable(
 	(t) => ({ dateIdx: index('fund_withdrawals_date_idx').on(t.date) })
 );
 
+/** Money put into a fund by hand; not tied to any paycheck */
+export const fundDeposits = sqliteTable(
+	'fund_deposits',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		fundId: integer('fund_id')
+			.notNull()
+			.references(() => funds.id, { onDelete: 'cascade' }),
+		amountCents: integer('amount_cents').notNull(),
+		/** ISO date of the deposit (YYYY-MM-DD) */
+		date: text('date').notNull(),
+		notes: text('notes'),
+		createdAt: text('created_at')
+			.notNull()
+			.default(sql`(date('now'))`)
+	},
+	(t) => ({ dateIdx: index('fund_deposits_date_idx').on(t.date) })
+);
+
 // ---------------------------------------------------------------------------
 // Expenses
 // ---------------------------------------------------------------------------
@@ -170,7 +189,8 @@ export const paycheckDeductionsRelations = relations(paycheckDeductions, ({ one 
 
 export const fundsRelations = relations(funds, ({ many }) => ({
 	allocations: many(allocations),
-	withdrawals: many(fundWithdrawals)
+	withdrawals: many(fundWithdrawals),
+	deposits: many(fundDeposits)
 }));
 
 export const allocationsRelations = relations(allocations, ({ one }) => ({
@@ -181,6 +201,10 @@ export const allocationsRelations = relations(allocations, ({ one }) => ({
 export const fundWithdrawalsRelations = relations(fundWithdrawals, ({ one }) => ({
 	fund: one(funds, { fields: [fundWithdrawals.fundId], references: [funds.id] }),
 	expense: one(expenses, { fields: [fundWithdrawals.expenseId], references: [expenses.id] })
+}));
+
+export const fundDepositsRelations = relations(fundDeposits, ({ one }) => ({
+	fund: one(funds, { fields: [fundDeposits.fundId], references: [funds.id] })
 }));
 
 export const categoriesRelations = relations(categories, ({ many }) => ({

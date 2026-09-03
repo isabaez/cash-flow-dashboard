@@ -1,5 +1,5 @@
 import { db } from '$lib/server/db';
-import { allocations, fundWithdrawals, paychecks } from '$lib/server/db/schema';
+import { allocations, fundDeposits, fundWithdrawals, paychecks } from '$lib/server/db/schema';
 import { eq, sql, sum } from 'drizzle-orm';
 import { nextMonth } from '$lib/date';
 import type { PageServerLoad } from './$types';
@@ -11,20 +11,25 @@ const PROJECTION_MONTHS = 12;
 
 export const load: PageServerLoad = async () => {
 	const allocMonth = sql<string>`substr(${paychecks.date}, 1, 7)`;
+	const depMonth = sql<string>`substr(${fundDeposits.date}, 1, 7)`;
 	const wdMonth = sql<string>`substr(${fundWithdrawals.date}, 1, 7)`;
 
-	const [contribRows, wdRows, fundRows] = await Promise.all([
+	const [contribRows, depRows, wdRows, fundRows] = await Promise.all([
 		db
 			.select({ month: allocMonth, cents: sum(allocations.resolvedCents).mapWith(Number) })
 			.from(allocations)
 			.innerJoin(paychecks, eq(allocations.paycheckId, paychecks.id))
 			.groupBy(allocMonth),
 		db
+			.select({ month: depMonth, cents: sum(fundDeposits.amountCents).mapWith(Number) })
+			.from(fundDeposits)
+			.groupBy(depMonth),
+		db
 			.select({ month: wdMonth, cents: sum(fundWithdrawals.amountCents).mapWith(Number) })
 			.from(fundWithdrawals)
 			.groupBy(wdMonth),
 		db.query.funds.findMany({
-			with: { allocations: true, withdrawals: true },
+			with: { allocations: true, deposits: true, withdrawals: true },
 			orderBy: (f, { asc }) => [asc(f.name)]
 		})
 	]);
@@ -32,6 +37,7 @@ export const load: PageServerLoad = async () => {
 	// Net movement per month across all funds.
 	const deltaByMonth = new Map<string, number>();
 	for (const r of contribRows) deltaByMonth.set(r.month, (deltaByMonth.get(r.month) ?? 0) + r.cents);
+	for (const r of depRows) deltaByMonth.set(r.month, (deltaByMonth.get(r.month) ?? 0) + r.cents);
 	for (const r of wdRows) deltaByMonth.set(r.month, (deltaByMonth.get(r.month) ?? 0) - r.cents);
 
 	// Initial fund values predate all tracked movements — the series baseline.
@@ -81,6 +87,7 @@ export const load: PageServerLoad = async () => {
 
 	const perFund = fundRows.map((fund) => {
 		const contributedCents = fund.allocations.reduce((s, a) => s + a.resolvedCents, 0);
+		const depositedCents = fund.deposits.reduce((s, d) => s + d.amountCents, 0);
 		const withdrawnCents = fund.withdrawals.reduce((s, w) => s + w.amountCents, 0);
 		return {
 			id: fund.id,
@@ -88,8 +95,9 @@ export const load: PageServerLoad = async () => {
 			isSavings: fund.isSavings,
 			initialCents: fund.initialCents,
 			contributedCents,
+			depositedCents,
 			withdrawnCents,
-			balanceCents: fund.initialCents + contributedCents - withdrawnCents
+			balanceCents: fund.initialCents + contributedCents + depositedCents - withdrawnCents
 		};
 	});
 

@@ -81,7 +81,7 @@
 </div>
 
 <p class="explainer">
-	Fund balances at cost basis — initial value plus contributions minus withdrawals. Market gains
+	Fund balances at cost basis — initial value plus contributions and deposits minus withdrawals. Market gains
 	and losses are not tracked.
 </p>
 
@@ -129,6 +129,7 @@
 					<th>Fund</th>
 					<th class="table__cell--number">Initial</th>
 					<th class="table__cell--number">Contributed</th>
+					<th class="table__cell--number">Deposited</th>
 					<th class="table__cell--number">Withdrawn</th>
 					<th class="table__cell--number">Balance</th>
 					<th class="table__cell--number">% of net worth</th>
@@ -140,6 +141,7 @@
 						<td>{fund.name}</td>
 						<td class="table__cell--number">{formatCents(fund.initialCents)}</td>
 						<td class="table__cell--number">{formatCents(fund.contributedCents)}</td>
+						<td class="table__cell--number">{formatCents(fund.depositedCents)}</td>
 						<td class="table__cell--number">{formatCents(fund.withdrawnCents)}</td>
 						<td class="table__cell--number">{formatCents(fund.balanceCents)}</td>
 						<td class="table__cell--number">{share(fund.balanceCents)}</td>
