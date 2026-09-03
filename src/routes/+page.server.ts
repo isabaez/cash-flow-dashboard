@@ -4,6 +4,7 @@ import {
 	categories,
 	expenseCategories,
 	expenses,
+	fundDeposits,
 	fundWithdrawals,
 	funds,
 	paycheckDeductions,
@@ -43,6 +44,7 @@ export const load: PageServerLoad = async ({ url }) => {
 	// Month buckets keyed off each table's date column.
 	const pcMonth = sql<string>`substr(${paychecks.date}, 1, 7)`;
 	const expMonth = sql<string>`substr(${expenses.date}, 1, 7)`;
+	const depMonth = sql<string>`substr(${fundDeposits.date}, 1, 7)`;
 	const wdMonth = sql<string>`substr(${fundWithdrawals.date}, 1, 7)`;
 
 	const currentMonth = new Date().toISOString().slice(0, 7);
@@ -90,6 +92,7 @@ export const load: PageServerLoad = async ({ url }) => {
 		allocationRows,
 		expenseRows,
 		fundContribRows,
+		fundDepositRows,
 		fundWithdrawalRows,
 		fundRows,
 		categoryRows,
@@ -123,6 +126,15 @@ export const load: PageServerLoad = async ({ url }) => {
 			.from(allocations)
 			.innerJoin(paychecks, eq(allocations.paycheckId, paychecks.id))
 			.groupBy(allocations.fundId, pcMonth),
+		// Per-fund manual deposits by month (chart 2).
+		db
+			.select({
+				fundId: fundDeposits.fundId,
+				month: depMonth,
+				cents: sum(fundDeposits.amountCents).mapWith(Number)
+			})
+			.from(fundDeposits)
+			.groupBy(fundDeposits.fundId, depMonth),
 		// Per-fund withdrawals by month (chart 2).
 		db
 			.select({
@@ -184,6 +196,7 @@ export const load: PageServerLoad = async ({ url }) => {
 	const monthKeys = new Set<string>([
 		...grossRows.map((r) => r.month),
 		...expenseRows.map((r) => r.month),
+		...fundDepositRows.map((r) => r.month),
 		...fundWithdrawalRows.map((r) => r.month)
 	]);
 	const sorted = [...monthKeys].sort();
@@ -214,6 +227,7 @@ export const load: PageServerLoad = async ({ url }) => {
 	// the shared expenses pool) are excluded; this chart is about long-term growth.
 	// Colors by index among savings funds so each keeps a stable color.
 	const contribByFundMonth = new Map(fundContribRows.map((r) => [`${r.fundId}:${r.month}`, r.cents]));
+	const depositByFundMonth = new Map(fundDepositRows.map((r) => [`${r.fundId}:${r.month}`, r.cents]));
 	const withdrawalByFundMonth = new Map(
 		fundWithdrawalRows.map((r) => [`${r.fundId}:${r.month}`, r.cents])
 	);
@@ -223,7 +237,8 @@ export const load: PageServerLoad = async ({ url }) => {
 			let running = fund.initialCents;
 			const cents = months.map((m) => {
 				running +=
-					(contribByFundMonth.get(`${fund.id}:${m}`) ?? 0) -
+					(contribByFundMonth.get(`${fund.id}:${m}`) ?? 0) +
+					(depositByFundMonth.get(`${fund.id}:${m}`) ?? 0) -
 					(withdrawalByFundMonth.get(`${fund.id}:${m}`) ?? 0);
 				return running;
 			});

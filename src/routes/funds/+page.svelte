@@ -18,8 +18,13 @@
 	let deletingId = $state<number | null>(null);
 	// Which fund's ledger is expanded.
 	let expandedId = $state<number | null>(null);
-	// Which withdrawal is being edited inline.
-	let editingWithdrawalId = $state<number | null>(null);
+	// Which ledger entry is being edited inline, as "<kind>:<id>" — deposit and
+	// withdrawal ids are separate sequences, so the kind is part of the key.
+	let editingEntryKey = $state<string | null>(null);
+
+	function entryKey(entry: Fund['ledger'][number]): string {
+		return `${entry.kind}:${entry.entryId}`;
+	}
 
 	function toggleExpanded(id: number) {
 		expandedId = expandedId === id ? null : id;
@@ -41,6 +46,7 @@
 		| 'isSavings'
 		| 'initialCents'
 		| 'contributedCents'
+		| 'depositedCents'
 		| 'withdrawnCents'
 		| 'balanceCents';
 
@@ -216,6 +222,18 @@
 							</span>
 						</button>
 					</th>
+					<th class="table__cell--number" aria-sort={ariaSort('depositedCents')}>
+						<button
+							class="sort-button sort-button--number"
+							type="button"
+							onclick={() => setSort('depositedCents')}
+						>
+							Deposited
+							<span class="sort-button__arrow" aria-hidden="true">
+								{sortKey === 'depositedCents' ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
+							</span>
+						</button>
+					</th>
 					<th class="table__cell--number" aria-sort={ariaSort('withdrawnCents')}>
 						<button
 							class="sort-button sort-button--number"
@@ -267,6 +285,7 @@
 						<td>{fund.isSavings ? 'Yes' : 'No'}</td>
 						<td class="table__cell--number">{formatCents(fund.initialCents)}</td>
 						<td class="table__cell--number">{formatCents(fund.contributedCents)}</td>
+						<td class="table__cell--number">{formatCents(fund.depositedCents)}</td>
 						<td class="table__cell--number">{formatCents(fund.withdrawnCents)}</td>
 						<td class="table__cell--number">{formatCents(fund.balanceCents)}</td>
 						<td>
@@ -310,55 +329,57 @@
 
 					{#if expandedId === fund.id}
 						<tr class="detail-row">
-							<td colspan="8">
+							<td colspan="9">
 								<div class="ledger">
 									<h3 class="ledger__title">Ledger</h3>
 
 									{#if fund.ledger.length === 0}
 										<p class="ledger__empty">
 											No movements yet. Contributions come from paycheck allocations on the Income
-											page; withdrawals are recorded below.
+											page; deposits and withdrawals are recorded below.
 										</p>
 									{:else}
 										<table class="table ledger__list">
 											<tbody>
-												{#each fund.ledger as entry (entry.kind + (entry.withdrawalId ?? entry.date + entry.label + entry.amountCents))}
-													{#if entry.withdrawalId !== null && editingWithdrawalId === entry.withdrawalId}
+												{#each fund.ledger as entry (entry.kind + (entry.entryId ?? entry.date + entry.label + entry.amountCents))}
+													{#if entry.entryId !== null && editingEntryKey === entryKey(entry)}
 														<tr>
 															<td colspan="5">
 																<form
-																	class="withdrawal-form"
+																	class="movement-form"
 																	method="POST"
-																	action="?/updateWithdrawal"
+																	action={entry.kind === 'deposit'
+																		? '?/updateDeposit'
+																		: '?/updateWithdrawal'}
 																	use:enhance={() =>
 																		({ update }) => {
-																			editingWithdrawalId = null;
+																			editingEntryKey = null;
 																			update();
 																		}}
 																>
-																	<input type="hidden" name="id" value={entry.withdrawalId} />
+																	<input type="hidden" name="id" value={entry.entryId} />
 																	<div class="field">
 																		<label
 																			class="field__label"
-																			for="wd-edit-amount-{entry.withdrawalId}"
+																			for="mv-edit-amount-{entryKey(entry)}"
 																		>
 																			Amount
 																		</label>
 																		<input
 																			class="field__input"
-																			id="wd-edit-amount-{entry.withdrawalId}"
+																			id="mv-edit-amount-{entryKey(entry)}"
 																			name="amount"
 																			required
 																			value={dollars(entry.amountCents)}
 																		/>
 																	</div>
 																	<div class="field">
-																		<label class="field__label" for="wd-edit-date-{entry.withdrawalId}">
+																		<label class="field__label" for="mv-edit-date-{entryKey(entry)}">
 																			Date
 																		</label>
 																		<input
 																			class="field__input"
-																			id="wd-edit-date-{entry.withdrawalId}"
+																			id="mv-edit-date-{entryKey(entry)}"
 																			name="date"
 																			type="date"
 																			required
@@ -368,23 +389,23 @@
 																	<div class="field">
 																		<label
 																			class="field__label"
-																			for="wd-edit-notes-{entry.withdrawalId}"
+																			for="mv-edit-notes-{entryKey(entry)}"
 																		>
 																			Notes
 																		</label>
 																		<input
 																			class="field__input"
-																			id="wd-edit-notes-{entry.withdrawalId}"
+																			id="mv-edit-notes-{entryKey(entry)}"
 																			name="notes"
 																			placeholder="Optional"
-																			value={entry.withdrawalNotes ?? ''}
+																			value={entry.entryNotes ?? ''}
 																		/>
 																	</div>
 																	<button class="button" type="submit">Save</button>
 																	<button
 																		class="link-action"
 																		type="button"
-																		onclick={() => (editingWithdrawalId = null)}
+																		onclick={() => (editingEntryKey = null)}
 																	>
 																		Cancel
 																	</button>
@@ -397,6 +418,7 @@
 															<td>
 																<span
 																	class="type-badge"
+																	class:type-badge--deposit={entry.kind === 'deposit'}
 																	class:type-badge--withdrawal={entry.kind === 'withdrawal'}
 																	class:type-badge--initial={entry.kind === 'initial'}
 																>
@@ -413,17 +435,23 @@
 																)}
 															</td>
 															<td class="table__cell--number">
-																{#if entry.withdrawalId !== null && !entry.expenseLinked}
+																{#if entry.entryId !== null && !entry.expenseLinked}
 																	<div class="inline-form">
 																		<button
 																			class="link-action"
 																			type="button"
-																			onclick={() => (editingWithdrawalId = entry.withdrawalId)}
+																			onclick={() => (editingEntryKey = entryKey(entry))}
 																		>
 																			Edit
 																		</button>
-																		<form method="POST" action="?/deleteWithdrawal" use:enhance>
-																			<input type="hidden" name="id" value={entry.withdrawalId} />
+																		<form
+																			method="POST"
+																			action={entry.kind === 'deposit'
+																				? '?/deleteDeposit'
+																				: '?/deleteWithdrawal'}
+																			use:enhance
+																		>
+																			<input type="hidden" name="id" value={entry.entryId} />
 																			<button class="link-action" type="submit">Remove</button>
 																		</form>
 																	</div>
@@ -442,7 +470,42 @@
 										</table>
 									{/if}
 
-									<form class="withdrawal-form" method="POST" action="?/createWithdrawal" use:enhance>
+									<form class="movement-form" method="POST" action="?/createDeposit" use:enhance>
+										<input type="hidden" name="fundId" value={fund.id} />
+										<div class="field">
+											<label class="field__label" for="dp-amount-{fund.id}">New deposit</label>
+											<input
+												class="field__input"
+												id="dp-amount-{fund.id}"
+												name="amount"
+												required
+												placeholder="e.g. 500.00"
+											/>
+										</div>
+										<div class="field">
+											<label class="field__label" for="dp-date-{fund.id}">Date</label>
+											<input
+												class="field__input"
+												id="dp-date-{fund.id}"
+												name="date"
+												type="date"
+												required
+												value={data.today}
+											/>
+										</div>
+										<div class="field">
+											<label class="field__label" for="dp-notes-{fund.id}">Notes</label>
+											<input
+												class="field__input"
+												id="dp-notes-{fund.id}"
+												name="notes"
+												placeholder="Optional"
+											/>
+										</div>
+										<button class="button" type="submit">Add deposit</button>
+									</form>
+
+									<form class="movement-form" method="POST" action="?/createWithdrawal" use:enhance>
 										<input type="hidden" name="fundId" value={fund.id} />
 										<div class="field">
 											<label class="field__label" for="wd-amount-{fund.id}">New withdrawal</label>
@@ -606,6 +669,11 @@
 		color: $color-success;
 		font-size: $text-sm;
 
+		&--deposit {
+			background: rgba(61, 214, 140, 0.12);
+			color: $color-success;
+		}
+
 		&--withdrawal {
 			background: rgba(242, 85, 90, 0.12);
 			color: $color-danger;
@@ -617,7 +685,7 @@
 		}
 	}
 
-	.withdrawal-form {
+	.movement-form {
 		display: flex;
 		align-items: flex-end;
 		gap: $space-md;
@@ -627,6 +695,10 @@
 			flex: 1;
 			min-width: 140px;
 			margin-bottom: 0;
+		}
+
+		+ .movement-form {
+			margin-top: $space-md;
 		}
 	}
 

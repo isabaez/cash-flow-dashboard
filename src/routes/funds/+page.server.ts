@@ -1,30 +1,31 @@
 import { db } from '$lib/server/db';
-import { funds, fundWithdrawals } from '$lib/server/db/schema';
+import { fundDeposits, funds, fundWithdrawals } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { fail } from '@sveltejs/kit';
 import { parseDollars } from '$lib/money';
 import type { Actions, PageServerLoad } from './$types';
 
 export type LedgerEntry = {
-	kind: 'contribution' | 'withdrawal' | 'initial';
+	kind: 'contribution' | 'deposit' | 'withdrawal' | 'initial';
 	date: string;
 	label: string;
 	amountCents: number;
-	/** Set for withdrawals only — contributions are edited from their paycheck. */
-	withdrawalId: number | null;
-	withdrawalNotes: string | null;
+	/** Set for manual deposits and withdrawals — contributions are edited from their paycheck. */
+	entryId: number | null;
+	entryNotes: string | null;
 	/** True when the withdrawal mirrors an expense — edited from the Expenses page. */
 	expenseLinked: boolean;
 };
 
 export const load: PageServerLoad = async () => {
 	const fundRows = await db.query.funds.findMany({
-		with: { allocations: { with: { paycheck: true } }, withdrawals: true },
+		with: { allocations: { with: { paycheck: true } }, deposits: true, withdrawals: true },
 		orderBy: (f, { asc }) => [asc(f.name)]
 	});
 
 	const shaped = fundRows.map((fund) => {
 		const contributedCents = fund.allocations.reduce((sum, a) => sum + a.resolvedCents, 0);
+		const depositedCents = fund.deposits.reduce((sum, d) => sum + d.amountCents, 0);
 		const withdrawnCents = fund.withdrawals.reduce((sum, w) => sum + w.amountCents, 0);
 
 		const ledger: LedgerEntry[] = [
@@ -34,8 +35,19 @@ export const load: PageServerLoad = async () => {
 					date: a.paycheck.date,
 					label: a.paycheck.title,
 					amountCents: a.resolvedCents,
-					withdrawalId: null,
-					withdrawalNotes: null,
+					entryId: null,
+					entryNotes: null,
+					expenseLinked: false
+				})
+			),
+			...fund.deposits.map(
+				(d): LedgerEntry => ({
+					kind: 'deposit',
+					date: d.date,
+					label: d.notes || 'Deposit',
+					amountCents: d.amountCents,
+					entryId: d.id,
+					entryNotes: d.notes,
 					expenseLinked: false
 				})
 			),
@@ -45,8 +57,8 @@ export const load: PageServerLoad = async () => {
 					date: w.date,
 					label: w.notes || 'Withdrawal',
 					amountCents: w.amountCents,
-					withdrawalId: w.id,
-					withdrawalNotes: w.notes,
+					entryId: w.id,
+					entryNotes: w.notes,
 					expenseLinked: w.expenseId !== null
 				})
 			)
@@ -59,8 +71,8 @@ export const load: PageServerLoad = async () => {
 				date: '—',
 				label: 'Initial value',
 				amountCents: fund.initialCents,
-				withdrawalId: null,
-				withdrawalNotes: null,
+				entryId: null,
+				entryNotes: null,
 				expenseLinked: false
 			});
 		}
@@ -72,9 +84,11 @@ export const load: PageServerLoad = async () => {
 			isSavings: fund.isSavings,
 			initialCents: fund.initialCents,
 			contributedCents,
+			depositedCents,
 			withdrawnCents,
-			balanceCents: fund.initialCents + contributedCents - withdrawnCents,
+			balanceCents: fund.initialCents + contributedCents + depositedCents - withdrawnCents,
 			contributionCount: fund.allocations.length,
+			depositCount: fund.deposits.length,
 			withdrawalCount: fund.withdrawals.length,
 			ledger
 		};
@@ -84,8 +98,8 @@ export const load: PageServerLoad = async () => {
 	return { funds: shaped, today };
 };
 
-/** Read + validate the shared withdrawal fields from a submitted form. */
-function readWithdrawal(form: FormData) {
+/** Read + validate the fields shared by deposits and withdrawals from a submitted form. */
+function readMovement(form: FormData) {
 	const amountCents = parseDollars(String(form.get('amount') ?? ''));
 	const date = String(form.get('date') ?? '').trim();
 	const notes = String(form.get('notes') ?? '').trim() || null;
@@ -142,7 +156,7 @@ export const actions: Actions = {
 		return { success: true };
 	},
 
-	/** Deleting a fund cascade-deletes its allocations and withdrawals. */
+	/** Deleting a fund cascade-deletes its allocations, deposits and withdrawals. */
 	deleteFund: async ({ request }) => {
 		const form = await request.formData();
 		const id = Number(form.get('id'));
@@ -152,12 +166,51 @@ export const actions: Actions = {
 		return { success: true };
 	},
 
+	createDeposit: async ({ request }) => {
+		const form = await request.formData();
+		const fundId = Number(form.get('fundId'));
+		if (!fundId) return fail(400, { error: 'Missing fund id' });
+
+		const parsed = readMovement(form);
+		if ('error' in parsed) return fail(400, { error: parsed.error });
+
+		await db.insert(fundDeposits).values({ fundId, ...parsed.values });
+		return { success: true };
+	},
+
+	updateDeposit: async ({ request }) => {
+		const form = await request.formData();
+		const id = Number(form.get('id'));
+		if (!id) return fail(400, { error: 'Missing deposit id' });
+
+		const existing = await db.query.fundDeposits.findFirst({ where: eq(fundDeposits.id, id) });
+		if (!existing) return fail(404, { error: 'Deposit not found' });
+
+		const parsed = readMovement(form);
+		if ('error' in parsed) return fail(400, { error: parsed.error });
+
+		await db.update(fundDeposits).set(parsed.values).where(eq(fundDeposits.id, id));
+		return { success: true };
+	},
+
+	deleteDeposit: async ({ request }) => {
+		const form = await request.formData();
+		const id = Number(form.get('id'));
+		if (!id) return fail(400, { error: 'Missing deposit id' });
+
+		const existing = await db.query.fundDeposits.findFirst({ where: eq(fundDeposits.id, id) });
+		if (!existing) return fail(404, { error: 'Deposit not found' });
+
+		await db.delete(fundDeposits).where(eq(fundDeposits.id, id));
+		return { success: true };
+	},
+
 	createWithdrawal: async ({ request }) => {
 		const form = await request.formData();
 		const fundId = Number(form.get('fundId'));
 		if (!fundId) return fail(400, { error: 'Missing fund id' });
 
-		const parsed = readWithdrawal(form);
+		const parsed = readMovement(form);
 		if ('error' in parsed) return fail(400, { error: parsed.error });
 
 		await db.insert(fundWithdrawals).values({ fundId, ...parsed.values });
@@ -176,7 +229,7 @@ export const actions: Actions = {
 		if (existing.expenseId !== null)
 			return fail(400, { error: 'This withdrawal mirrors an expense — edit it on the Expenses page' });
 
-		const parsed = readWithdrawal(form);
+		const parsed = readMovement(form);
 		if ('error' in parsed) return fail(400, { error: parsed.error });
 
 		await db.update(fundWithdrawals).set(parsed.values).where(eq(fundWithdrawals.id, id));

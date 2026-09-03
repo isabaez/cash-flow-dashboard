@@ -1,7 +1,7 @@
 # Cash Flow Dashboard
 
 Locally hosted household finance tracker — a database of all dated financial movements (paychecks,
-expenses, fund contributions/withdrawals) for two people. SvelteKit (Svelte 5) + TypeScript +
+expenses, fund contributions/deposits/withdrawals) for two people. SvelteKit (Svelte 5) + TypeScript +
 SQLite (Drizzle ORM) + SCSS/BEM, dark theme.
 
 ## Setup
@@ -88,12 +88,15 @@ recomputed transactionally on any paycheck mutation (`recomputePaycheck` in
 - `fund_withdrawals` — dated withdrawals from a fund; `expenseId` is set when the withdrawal
   mirrors an expense paid from the fund (synced on expense create/edit/delete, read-only in the
   fund ledger)
+- `fund_deposits` — dated manual deposits into a fund, for money that doesn't come from a
+  paycheck allocation
 - `categories` — expense categories; `color` is a `#rrggbb` hex used for the category's tag
 - `expenses` — title, amount, date, notes
 - `expense_categories` — join table; an expense carries any number of categories
   (unique on expense + category, `restrict` on category delete)
 
-Fund balances and net worth are **derived**: `initialCents + Σ allocations.resolvedCents − Σ withdrawals`.
+Fund balances and net worth are **derived**:
+`initialCents + Σ allocations.resolvedCents + Σ deposits − Σ withdrawals`.
 Net worth is fund cost basis only — market gains/losses are not tracked.
 
 Deleting a category either unlinks it from expenses or reassigns the links to a replacement,
@@ -137,8 +140,8 @@ If Ollama isn't reachable, the page shows a setup hint instead of failing hard.
   allocations; month/year filter
 - **Expenses** — expense CRUD + duplicate-to-date; multi-category via `MultiSelect.svelte`;
   month/year/category filter; optional "pay from fund" that records a mirrored fund withdrawal
-- **Funds** — fund CRUD; per-fund ledger of contributions (from paychecks) and withdrawals
-  (edited inline); running balance
+- **Funds** — fund CRUD; per-fund ledger of contributions (from paychecks) plus manual deposits
+  and withdrawals (both edited inline); running balance
 - **Net Worth** — cumulative monthly series with a dashed 12-month projection (trailing 6-month
   average rate) via `Chart.svelte`; per-fund breakdown
 - **Categories** — CRUD with unlink-or-reassign delete; each category has an editable color
@@ -150,7 +153,7 @@ If Ollama isn't reachable, the page shows a setup hint instead of failing hard.
 
 - [x] Paycheck ledger: dated paychecks, deductions with gross/net basis, fund allocations
 - [x] Expenses with many-to-many categories; month/year/category filtering
-- [x] Funds page with withdrawal ledger and balances
+- [x] Funds page with deposit/withdrawal ledger and balances
 - [x] Net worth page with projection chart
 - [x] Dark theme, top-bar/drawer nav, modal forms, keyboard accessibility
 - [x] Dashboard charts (reuse `Chart.svelte`): net income vs expenses, savings fund growth,
