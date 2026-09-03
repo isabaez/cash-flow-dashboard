@@ -79,7 +79,7 @@
 </script>
 
 <svelte:head>
-	<title>Funds · Cash Flow</title>
+	<title>Funds · Baez Financial Dashboard</title>
 </svelte:head>
 
 <div class="page-header">

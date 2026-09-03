@@ -195,7 +195,7 @@
 </script>
 
 <svelte:head>
-	<title>Expenses · Cash Flow</title>
+	<title>Expenses · Baez Financial Dashboard</title>
 </svelte:head>
 
 <div class="page-header">
