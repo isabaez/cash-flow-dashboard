@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import Modal from '$lib/components/Modal.svelte';
+	import SortableHeader from '$lib/components/SortableHeader.svelte';
+	import { scrollable } from '$lib/actions';
 	import { formatCents } from '$lib/money';
 	import { formatDate } from '$lib/date';
 	import type { PageProps } from './$types';
@@ -74,12 +76,11 @@
 			return cmp !== 0 ? cmp : a.name.localeCompare(b.name);
 		})
 	);
-
-	function ariaSort(key: SortKey): 'ascending' | 'descending' | undefined {
-		if (sortKey !== key) return undefined;
-		return sortDir === 'asc' ? 'ascending' : 'descending';
-	}
 </script>
+
+<svelte:head>
+	<title>Funds · Cash Flow</title>
+</svelte:head>
 
 <div class="page-header">
 	<h1>Funds</h1>
@@ -87,7 +88,7 @@
 </div>
 
 {#if form?.error}
-	<p class="form-error">{form.error}</p>
+	<p class="form-error" role="alert">{form.error}</p>
 {/if}
 
 {#snippet fundFields(fund: Fund | null, idPrefix: string)}
@@ -131,7 +132,7 @@
 
 <Modal bind:open={showAddModal} title="New fund">
 	{#if form?.error}
-		<p class="form-error">{form.error}</p>
+		<p class="form-error" role="alert">{form.error}</p>
 	{/if}
 	{#key showAddModal}
 		<form
@@ -151,7 +152,7 @@
 
 <Modal bind:open={showEditModal} title="Edit fund">
 	{#if form?.error}
-		<p class="form-error">{form.error}</p>
+		<p class="form-error" role="alert">{form.error}</p>
 	{/if}
 	<!-- Key on the open flag too: the post-save form reset empties the DOM inputs,
 	     so reopening the same fund must remount the form with fresh values. -->
@@ -176,89 +177,35 @@
 
 <div class="card">
 	{#if data.funds.length === 0}
-		<p class="empty-state">No funds yet. Add funds, then funnel paychecks into them from the Income page.</p>
+		<div class="empty-state">
+			<p class="empty-state__title">No funds yet.</p>
+			<p class="empty-state__hint">
+				Add a fund, then funnel paychecks into it from the Income page.
+			</p>
+			<div class="empty-state__actions">
+				<button class="button" type="button" onclick={() => (showAddModal = true)}>Add fund</button>
+			</div>
+		</div>
 	{:else}
-		<table class="table">
+		<div class="table-scroll" use:scrollable={'Funds table'}>
+		<table class="table table--dense">
+			<caption class="visually-hidden">
+				{data.funds.length} funds with their initial value, contributions, deposits, withdrawals and
+				current balance. Every row can be expanded to show its ledger.
+			</caption>
 			<thead>
 				<tr class="table__head">
-					<th class="table__cell--caret"></th>
-					<th aria-sort={ariaSort('name')}>
-						<button class="sort-button" type="button" onclick={() => setSort('name')}>
-							Fund
-							<span class="sort-button__arrow" aria-hidden="true">
-								{sortKey === 'name' ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
-							</span>
-						</button>
+					<th scope="col" class="table__cell--caret">
+						<span class="visually-hidden">Expand ledger</span>
 					</th>
-					<th aria-sort={ariaSort('isSavings')}>
-						<button class="sort-button" type="button" onclick={() => setSort('isSavings')}>
-							Savings?
-							<span class="sort-button__arrow" aria-hidden="true">
-								{sortKey === 'isSavings' ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
-							</span>
-						</button>
-					</th>
-					<th class="table__cell--number" aria-sort={ariaSort('initialCents')}>
-						<button
-							class="sort-button sort-button--number"
-							type="button"
-							onclick={() => setSort('initialCents')}
-						>
-							Initial
-							<span class="sort-button__arrow" aria-hidden="true">
-								{sortKey === 'initialCents' ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
-							</span>
-						</button>
-					</th>
-					<th class="table__cell--number" aria-sort={ariaSort('contributedCents')}>
-						<button
-							class="sort-button sort-button--number"
-							type="button"
-							onclick={() => setSort('contributedCents')}
-						>
-							Contributed
-							<span class="sort-button__arrow" aria-hidden="true">
-								{sortKey === 'contributedCents' ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
-							</span>
-						</button>
-					</th>
-					<th class="table__cell--number" aria-sort={ariaSort('depositedCents')}>
-						<button
-							class="sort-button sort-button--number"
-							type="button"
-							onclick={() => setSort('depositedCents')}
-						>
-							Deposited
-							<span class="sort-button__arrow" aria-hidden="true">
-								{sortKey === 'depositedCents' ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
-							</span>
-						</button>
-					</th>
-					<th class="table__cell--number" aria-sort={ariaSort('withdrawnCents')}>
-						<button
-							class="sort-button sort-button--number"
-							type="button"
-							onclick={() => setSort('withdrawnCents')}
-						>
-							Withdrawn
-							<span class="sort-button__arrow" aria-hidden="true">
-								{sortKey === 'withdrawnCents' ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
-							</span>
-						</button>
-					</th>
-					<th class="table__cell--number" aria-sort={ariaSort('balanceCents')}>
-						<button
-							class="sort-button sort-button--number"
-							type="button"
-							onclick={() => setSort('balanceCents')}
-						>
-							Balance
-							<span class="sort-button__arrow" aria-hidden="true">
-								{sortKey === 'balanceCents' ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
-							</span>
-						</button>
-					</th>
-					<th></th>
+					<SortableHeader label="Fund" sortKey="name" activeKey={sortKey} direction={sortDir} onsort={setSort} />
+					<SortableHeader label="Savings?" sortKey="isSavings" activeKey={sortKey} direction={sortDir} onsort={setSort} />
+					<SortableHeader label="Initial" sortKey="initialCents" activeKey={sortKey} direction={sortDir} align="end" onsort={setSort} />
+					<SortableHeader label="Contributed" sortKey="contributedCents" activeKey={sortKey} direction={sortDir} align="end" onsort={setSort} />
+					<SortableHeader label="Deposited" sortKey="depositedCents" activeKey={sortKey} direction={sortDir} align="end" onsort={setSort} />
+					<SortableHeader label="Withdrawn" sortKey="withdrawnCents" activeKey={sortKey} direction={sortDir} align="end" onsort={setSort} />
+					<SortableHeader label="Balance" sortKey="balanceCents" activeKey={sortKey} direction={sortDir} align="end" onsort={setSort} />
+					<th scope="col"><span class="visually-hidden">Actions</span></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -273,21 +220,25 @@
 								aria-label="Toggle ledger for {fund.name}"
 								onclick={() => toggleExpanded(fund.id)}
 							>
-								▸
+								<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+									<path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+								</svg>
 							</button>
 						</td>
-						<td>
+						<th scope="row" class="table__cell--name">
 							{fund.name}
 							{#if fund.description}
 								<span class="fund-description">{fund.description}</span>
 							{/if}
-						</td>
+						</th>
 						<td>{fund.isSavings ? 'Yes' : 'No'}</td>
 						<td class="table__cell--number">{formatCents(fund.initialCents)}</td>
 						<td class="table__cell--number">{formatCents(fund.contributedCents)}</td>
 						<td class="table__cell--number">{formatCents(fund.depositedCents)}</td>
 						<td class="table__cell--number">{formatCents(fund.withdrawnCents)}</td>
-						<td class="table__cell--number">{formatCents(fund.balanceCents)}</td>
+						<td class="table__cell--number table__cell--emphasis">
+							{formatCents(fund.balanceCents)}
+						</td>
 						<td>
 							{#if deletingId === fund.id}
 								<form
@@ -546,53 +497,26 @@
 				{/each}
 			</tbody>
 		</table>
+		</div>
 	{/if}
 </div>
 
 <style lang="scss">
-	@use 'variables' as *;
-
+	
 	.fund-description {
 		display: block;
-		color: $color-text-muted;
-		font-size: $text-sm;
-	}
-
-	.sort-button {
-		display: inline-flex;
-		align-items: center;
-		gap: $space-xs;
-		background: none;
-		border: none;
-		padding: 0;
-		font: inherit;
-		font-weight: 500;
-		color: $color-text-muted;
-		cursor: pointer;
-
-		&:hover {
-			color: $color-text;
-		}
-
-		// Right-aligned like the number cells beneath it.
-		&--number {
-			width: 100%;
-			justify-content: flex-end;
-			font-family: $font-mono;
-		}
-
-		&__arrow {
-			font-size: 0.7rem;
-			opacity: 0.7;
-		}
+		margin-top: 2px;
+		color: var(--text-tertiary);
+		font-size: var(--text-xs);
+		line-height: 1.35;
 	}
 
 	.checkbox {
 		display: flex;
 		align-items: center;
-		gap: $space-sm;
-		margin-bottom: $space-md;
-		font-size: $text-sm;
+		gap: var(--space-2);
+		margin-bottom: var(--space-4);
+		font-size: var(--text-sm);
 		cursor: pointer;
 	}
 
@@ -600,95 +524,83 @@
 		display: flex;
 		align-items: center;
 		justify-content: flex-end;
-		gap: $space-sm;
-	}
-
-	.confirm-text {
-		font-size: $text-sm;
-		color: $color-text-muted;
+		gap: var(--space-2);
 	}
 
 	.table__cell--caret {
-		width: 2rem;
+		width: 2.25rem;
 		padding-right: 0;
 	}
 
-	.caret {
-		background: none;
-		border: none;
-		cursor: pointer;
-		font-size: $text-base;
-		color: $color-text-muted;
-		padding: $space-xs;
-		line-height: 1;
-		transition: transform 0.15s ease;
-
-		&--open {
-			transform: rotate(90deg);
-		}
-	}
-
-	.detail-row > td {
-		background: $color-bg;
-		padding: $space-md $space-lg;
+	.table__cell--name {
+		font-weight: 500;
+		// Nine columns compete for width; without a floor the name column collapses
+		// and every description wraps to three or four lines.
+		min-inline-size: 10.5rem;
 	}
 
 	.ledger {
 		&__title {
-			font-size: $text-base;
-			margin-bottom: $space-sm;
+			font-size: var(--text-base);
+			margin-bottom: var(--space-2);
 		}
 
 		&__empty {
-			color: $color-text-muted;
-			font-size: $text-sm;
-			margin: 0 0 $space-md;
+			color: var(--text-secondary);
+			font-size: var(--text-sm);
+			margin: 0 0 var(--space-4);
 		}
 
 		&__list {
-			margin-bottom: $space-md;
-			background: $color-surface;
-			border-radius: $radius;
+			margin-bottom: var(--space-4);
+			background: var(--surface-1);
+			border: 1px solid var(--border-subtle);
+			border-radius: var(--radius-md);
+			overflow: hidden;
 		}
 
 		&__amount--negative {
-			color: $color-danger;
+			color: var(--neg);
 		}
 
 		&__hint {
-			color: $color-text-muted;
-			font-size: $text-sm;
+			color: var(--text-secondary);
+			font-size: var(--text-sm);
 		}
 	}
 
+	// Movement type. The badge text names the kind, so colour is reinforcement here
+	// rather than the only signal.
 	.type-badge {
 		display: inline-block;
-		padding: 0.1rem $space-sm;
-		border-radius: $radius;
-		background: rgba(61, 214, 140, 0.12);
-		color: $color-success;
-		font-size: $text-sm;
+		padding: 0.1rem var(--space-2);
+		border-radius: var(--radius-full);
+		background: var(--pos-soft);
+		color: var(--pos);
+		font-size: var(--text-xs);
+		font-weight: 500;
+		text-transform: capitalize;
 
 		&--deposit {
-			background: rgba(61, 214, 140, 0.12);
-			color: $color-success;
+			background: var(--pos-soft);
+			color: var(--pos);
 		}
 
 		&--withdrawal {
-			background: rgba(242, 85, 90, 0.12);
-			color: $color-danger;
+			background: var(--neg-soft);
+			color: var(--neg);
 		}
 
 		&--initial {
-			background: rgba(124, 154, 255, 0.12);
-			color: $color-primary;
+			background: var(--accent-soft);
+			color: var(--accent);
 		}
 	}
 
 	.movement-form {
 		display: flex;
 		align-items: flex-end;
-		gap: $space-md;
+		gap: var(--space-4);
 		flex-wrap: wrap;
 
 		.field {
@@ -698,12 +610,18 @@
 		}
 
 		+ .movement-form {
-			margin-top: $space-md;
+			margin-top: var(--space-4);
 		}
 	}
 
 	.form-error {
-		color: $color-danger;
-		font-size: $text-sm;
+		margin: 0 0 var(--space-4);
+		padding: var(--space-3) var(--space-4);
+		border: 1px solid color-mix(in oklab, var(--neg) 40%, transparent);
+		border-left: 3px solid var(--neg);
+		border-radius: var(--radius-md);
+		background: var(--neg-soft);
+		color: var(--text-primary);
+		font-size: var(--text-sm);
 	}
 </style>

@@ -3,7 +3,28 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>Cash Flow Dashboard</title>
+		<!-- No <title> here: every route sets its own via <svelte:head>, and a static
+		     one would emit a second <title> element that wins on the first paint. -->
+		<link
+			rel="preload"
+			href="/fonts/inter-latin-variable.woff2"
+			as="font"
+			type="font/woff2"
+			crossorigin
+		/>
+		<script>
+			// Runs before first paint so the correct theme is already on <html> —
+			// without this the page renders dark, then repaints light. "system" stores
+			// nothing and lets the media query in _tokens.scss decide.
+			(function () {
+				try {
+					var t = localStorage.getItem('theme');
+					if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+				} catch (e) {
+					/* private mode / storage blocked — fall through to the OS setting */
+				}
+			})();
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

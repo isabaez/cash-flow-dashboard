@@ -96,24 +96,23 @@
 </div>
 
 <style lang="scss">
-	@use 'variables' as *;
-
+	
 	.period-filter {
 		display: flex;
 		flex-wrap: wrap;
-		gap: $space-sm $space-md;
-		margin-bottom: $space-md;
+		gap: var(--space-2) var(--space-4);
+		margin-bottom: var(--space-4);
 
 		&__field {
 			display: flex;
 			align-items: center;
-			gap: $space-sm;
+			gap: var(--space-2);
 		}
 
 		&__label {
-			font-size: $text-sm;
+			font-size: var(--text-sm);
 			font-weight: 500;
-			color: $color-text-muted;
+			color: var(--text-secondary);
 			white-space: nowrap;
 		}
 	}

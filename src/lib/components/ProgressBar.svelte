@@ -18,26 +18,25 @@
 </div>
 
 <style lang="scss">
-	@use 'variables' as *;
-
+	
 	.progress {
 		width: 100%;
 		height: 0.5rem;
-		background: $color-surface-raised;
-		border: 1px solid $color-border;
-		border-radius: $radius;
+		background: var(--surface-2);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-md);
 		overflow: hidden;
 
 		&__fill {
 			height: 100%;
-			background: $color-primary;
+			background: var(--accent);
 			border-radius: inherit;
 			transition:
 				width 0.2s ease,
 				background 0.2s ease;
 
 			&--complete {
-				background: $color-success;
+				background: var(--pos);
 			}
 		}
 	}

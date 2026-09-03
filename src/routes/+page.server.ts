@@ -20,25 +20,15 @@ const TREND_WINDOW = 6;
 const PROJECTION_MONTHS = 12;
 
 /**
- * Fund bands (chart 2) — funds have no color column, so colors are assigned by
- * sorted-fund index. Distinct hues that read on the dark surface; wraps if there
- * are more funds than entries.
+ * Fund bands (chart 2) — funds have no color column, so each is assigned a slot in
+ * the categorical palette by sorted-fund index. The slot is resolved to an actual
+ * colour on the client (see readChartTokens in $lib/chart), so fund colours follow
+ * the active theme instead of being frozen as hex here.
  */
-const FUND_PALETTE = [
-	'#7c9aff', // primary blue
-	'#3dd68c', // success green
-	'#f2b705', // amber
-	'#f2555a', // danger red
-	'#b07cff', // violet
-	'#3dc9d6', // teal
-	'#ff8f5e', // orange
-	'#e56fb3', // pink
-	'#8ad14b', // lime
-	'#9aa7bd' // muted slate
-];
+const PALETTE_SLOTS = 10;
 
-/** Neutral grey for the "Uncategorized" doughnut slice (chart 3). */
-const UNCATEGORIZED_COLOR = '#97a0b3';
+/** The "Uncategorized" bar (chart 3) uses the neutral slot at the end of the palette. */
+const UNCATEGORIZED_SLOT = PALETTE_SLOTS - 1;
 
 export const load: PageServerLoad = async ({ url }) => {
 	// Month buckets keyed off each table's date column.
@@ -259,7 +249,7 @@ export const load: PageServerLoad = async ({ url }) => {
 				projectedCents.push(projected);
 			}
 
-			return { name: fund.name, color: FUND_PALETTE[i % FUND_PALETTE.length], cents, projectedCents };
+			return { name: fund.name, colorSlot: i % PALETTE_SLOTS, cents, projectedCents };
 		})
 		// Drop funds that never move and start at zero — pure noise.
 		.filter((f) => f.cents.some((c) => c !== 0));
@@ -276,14 +266,17 @@ export const load: PageServerLoad = async ({ url }) => {
 
 	// Chart 3: category breakdown for the selected period, largest first, with an
 	// Uncategorized bar appended when there's uncategorized spend.
-	const categoryBreakdown = categoryRows
-		.map((r) => ({ name: r.name, color: r.color, cents: r.cents }))
-		.sort((a, b) => b.cents - a.cents);
+	const categoryBreakdown: { name: string; color: string | null; colorSlot: number | null; cents: number }[] =
+		categoryRows
+			.map((r) => ({ name: r.name, color: r.color, colorSlot: null, cents: r.cents }))
+			.sort((a, b) => b.cents - a.cents);
 	const uncategorizedCents = uncategorizedRows[0]?.cents ?? 0;
 	if (uncategorizedCents > 0) {
+		// Synthetic row — it has no category record, so it takes a palette slot.
 		categoryBreakdown.push({
 			name: 'Uncategorized',
-			color: UNCATEGORIZED_COLOR,
+			color: null,
+			colorSlot: UNCATEGORIZED_SLOT,
 			cents: uncategorizedCents
 		});
 	}
@@ -292,6 +285,77 @@ export const load: PageServerLoad = async ({ url }) => {
 	// first (expenseRows is already grouped by expense month).
 	const availableMonths = expenseRows.map((r) => r.month).sort((a, b) => b.localeCompare(a));
 	const availableYears = [...new Set(availableMonths.map((m) => m.slice(0, 4)))];
+
+	// --- Headline figures -----------------------------------------------------
+	// "Verdict first": the dashboard leads with how things are going, not with five
+	// charts of equal weight. Everything below is derived from series already
+	// computed above — no additional queries.
+
+	/** How many trailing points each sparkline shows. */
+	const SPARK_POINTS = 12;
+	const spark = (series: (number | null)[]) => series.slice(-SPARK_POINTS);
+
+	// Net worth across EVERY fund (not just savings funds, unlike chart 2) — this is
+	// the same running-total rule the Net Worth page applies.
+	let runningNetWorth = fundRows.reduce((total, fund) => total + fund.initialCents, 0);
+	const netWorthSeries = months.map((m) => {
+		for (const fund of fundRows) {
+			runningNetWorth +=
+				(contribByFundMonth.get(`${fund.id}:${m}`) ?? 0) +
+				(depositByFundMonth.get(`${fund.id}:${m}`) ?? 0) -
+				(withdrawalByFundMonth.get(`${fund.id}:${m}`) ?? 0);
+		}
+		return runningNetWorth;
+	});
+
+	const netCashFlowCents = months.map((m, i) => netIncomeCents[i] - expensesCents[i]);
+
+	// Report on the current month where it exists; otherwise the latest month with
+	// data (a database whose newest row is in the past should not show all zeroes).
+	const currentIndex = months.indexOf(currentMonth);
+	const idx = currentIndex >= 0 ? currentIndex : months.length - 1;
+	const prev = idx - 1;
+	const has = idx >= 0;
+	const hasPrev = prev >= 0;
+
+	/** Mean of the up-to-`window` months before `idx`, ignoring gaps. */
+	const trailingMean = (series: (number | null)[], window = 6): number | null => {
+		const slice = series.slice(Math.max(0, idx - window), idx).filter((v): v is number => v !== null);
+		return slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : null;
+	};
+
+	const savingsRateNow = has ? savingsRate[idx] : null;
+	const savingsRateBaseline = trailingMean(savingsRate);
+
+	const kpis = {
+		/** The month every "this month" figure below describes. */
+		periodMonth: has ? months[idx] : null,
+		netWorth: {
+			cents: has ? netWorthSeries[idx] : 0,
+			deltaCents: hasPrev ? netWorthSeries[idx] - netWorthSeries[prev] : null,
+			trend: spark(netWorthSeries)
+		},
+		netCashFlow: {
+			cents: has ? netCashFlowCents[idx] : 0,
+			deltaCents: hasPrev ? netCashFlowCents[idx] - netCashFlowCents[prev] : null,
+			trend: spark(netCashFlowCents)
+		},
+		savingsRate: {
+			percent: savingsRateNow,
+			// Compared against the trailing average rather than last month alone: a
+			// single lumpy month otherwise reads as a trend that is not there.
+			deltaPoints:
+				savingsRateNow !== null && savingsRateBaseline !== null
+					? savingsRateNow - savingsRateBaseline
+					: null,
+			trend: spark(savingsRate)
+		},
+		spend: {
+			cents: has ? expensesCents[idx] : 0,
+			deltaCents: hasPrev ? expensesCents[idx] - expensesCents[prev] : null,
+			trend: spark(expensesCents)
+		}
+	};
 
 	return {
 		months,
@@ -306,6 +370,9 @@ export const load: PageServerLoad = async ({ url }) => {
 		categoryFilter: { month: catMonth, year: catYear, from: catFrom, to: catTo },
 		availableMonths,
 		availableYears,
+		kpis,
+		/** Figures are point-in-time; say when they were computed. */
+		asOf: new Date().toISOString().slice(0, 10),
 		hasData: months.length > 0
 	};
 };

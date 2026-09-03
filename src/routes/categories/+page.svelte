@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import Modal from '$lib/components/Modal.svelte';
 	import CategoryTag from '$lib/components/CategoryTag.svelte';
+	import { scrollable } from '$lib/actions';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -41,18 +42,22 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Categories · Cash Flow</title>
+</svelte:head>
+
 <div class="page-header">
 	<h1>Categories</h1>
 	<button class="button" type="button" onclick={openAdd}>Add category</button>
 </div>
 
 {#if form?.error}
-	<p class="form-error">{form.error}</p>
+	<p class="form-error" role="alert">{form.error}</p>
 {/if}
 
 <Modal bind:open={showAddModal} title="New category">
 	{#if form?.error}
-		<p class="form-error">{form.error}</p>
+		<p class="form-error" role="alert">{form.error}</p>
 	{/if}
 	{#key showAddModal}
 		<form
@@ -80,14 +85,26 @@
 
 <div class="card">
 	{#if data.categories.length === 0}
-		<p class="empty-state">No categories yet.</p>
+		<div class="empty-state">
+			<p class="empty-state__title">No categories yet.</p>
+			<p class="empty-state__hint">
+				Categories tag expenses so the Dashboard can break spending down.
+			</p>
+			<div class="empty-state__actions">
+				<button class="button" type="button" onclick={openAdd}>Add category</button>
+			</div>
+		</div>
 	{:else}
+		<div class="table-scroll" use:scrollable={'Categories table'}>
 		<table class="table">
+			<caption class="visually-hidden">
+				{data.categories.length} categories and how many expenses carry each.
+			</caption>
 			<thead>
 				<tr class="table__head">
-					<th>Name</th>
-					<th class="table__cell--number">Expenses</th>
-					<th></th>
+					<th scope="col">Name</th>
+					<th scope="col" class="table__cell--number">Expenses</th>
+					<th scope="col"><span class="visually-hidden">Actions</span></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -154,7 +171,7 @@
 									>
 										Cancel
 									</button>
-                  <button class="link-action link-action--danger" type="submit">Confirm</button>
+									<button class="link-action link-action--danger" type="submit">Confirm</button>
 								</form>
 							{:else}
 								<div class="row-actions">
@@ -182,16 +199,16 @@
 				{/each}
 			</tbody>
 		</table>
+		</div>
 	{/if}
 </div>
 
 <style lang="scss">
-	@use 'variables' as *;
-
+	
 	.category-form {
 		display: flex;
 		align-items: flex-end;
-		gap: $space-md;
+		gap: var(--space-4);
 
 		.field {
 			flex: 1;
@@ -208,21 +225,27 @@
 	.row-actions {
 		display: flex;
 		align-items: center;
-		gap: $space-sm;
+		gap: var(--space-2);
 	}
 
 	.color-input {
 		width: 2.75rem;
 		height: 2.6rem;
 		padding: 2px;
-		border: 1px solid $color-border;
-		border-radius: $radius;
-		background: $color-surface-raised;
+		border: 1px solid var(--border-strong);
+		border-radius: var(--radius-md);
+		background: var(--surface-2);
 		cursor: pointer;
 	}
 
 	.form-error {
-		color: $color-danger;
-		font-size: $text-sm;
+		margin: 0 0 var(--space-4);
+		padding: var(--space-3) var(--space-4);
+		border: 1px solid color-mix(in oklab, var(--neg) 40%, transparent);
+		border-left: 3px solid var(--neg);
+		border-radius: var(--radius-md);
+		background: var(--neg-soft);
+		color: var(--text-primary);
+		font-size: var(--text-sm);
 	}
 </style>

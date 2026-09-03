@@ -11,6 +11,7 @@
 	import { formatDate } from '$lib/date';
 	import { parseCsv, toExpenseRows, type CsvExpenseRow } from '$lib/csv';
 	import { applyCategoryFilters } from '$lib/filters';
+	import { scrollable } from '$lib/actions';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -193,6 +194,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Expenses · Cash Flow</title>
+</svelte:head>
+
 <div class="page-header">
 	<h1>Expenses</h1>
 	<div class="page-header__actions">
@@ -224,7 +229,7 @@
 {/if}
 
 {#if form?.error}
-	<p class="form-error">{form.error}</p>
+	<p class="form-error" role="alert">{form.error}</p>
 {/if}
 
 {#snippet expenseFields(expense: Expense | null, idPrefix: string)}
@@ -301,7 +306,7 @@
 
 <Modal bind:open={showAddModal} title="New expense">
 	{#if form?.error}
-		<p class="form-error">{form.error}</p>
+		<p class="form-error" role="alert">{form.error}</p>
 	{/if}
 	{#key showAddModal}
 		<form
@@ -339,7 +344,7 @@
 	</div>
 
 	{#if importParseError}
-		<p class="form-error">{importParseError}</p>
+		<p class="form-error" role="alert">{importParseError}</p>
 	{/if}
 
 	{#if importRows.length > 0}
@@ -350,11 +355,20 @@
 	{/if}
 
 	{#if importing || importDone}
-		<div class="import-progress">
+		<div class="import-progress" aria-busy={importing}>
 			<ProgressBar value={importProgress} label="CSV import progress" />
 			<span class="import-progress__count">{importProcessed} / {importRows.length}</span>
 		</div>
 	{/if}
+
+	<!-- Progress and outcome are announced; the bar itself is silent to AT. -->
+	<p class="visually-hidden" role="status">
+		{#if importing}
+			Importing row {importProcessed} of {importRows.length}.
+		{:else if importDone}
+			Import finished. {importedCount} imported, {importFailures.length} skipped.
+		{/if}
+	</p>
 
 	{#if importDone}
 		<p class="import-summary">
@@ -393,7 +407,7 @@
 
 <Modal bind:open={showEditModal} title="Edit expense">
 	{#if form?.error}
-		<p class="form-error">{form.error}</p>
+		<p class="form-error" role="alert">{form.error}</p>
 	{/if}
 	<!-- Key on the open flag too: the post-save form reset empties the DOM inputs,
 	     so reopening the same expense must remount the form with fresh values. -->
@@ -419,7 +433,7 @@
 
 <Modal bind:open={showDuplicateModal} title="Duplicate expense">
 	{#if form?.error}
-		<p class="form-error">{form.error}</p>
+		<p class="form-error" role="alert">{form.error}</p>
 	{/if}
 	{#key showDuplicateModal}
 	{#if duplicating}
@@ -492,7 +506,7 @@
 		{#each selectedIds as id (id)}
 			<input type="hidden" name="expenseId" value={id} />
 		{/each}
-		<span class="bulk-toolbar__count">
+		<span class="bulk-toolbar__count" role="status">
 			{selectedIds.length} selected
 		</span>
 		<div class="bulk-toolbar__group">
@@ -526,18 +540,33 @@
 
 <div class="card">
 	{#if data.expenses.length === 0}
-		<p class="empty-state">
+		<div class="empty-state">
 			{#if data.filters.month || data.filters.year || data.filters.categoryIds.length > 0}
-				No expenses match the current filters.
+				<p class="empty-state__title">No expenses match the current filters.</p>
+				<p class="empty-state__hint">Clear a filter above to widen the search.</p>
 			{:else}
-				No expenses yet.
+				<p class="empty-state__title">No expenses yet.</p>
+				<p class="empty-state__hint">Add one by hand, or import a CSV from your bank.</p>
+				<div class="empty-state__actions">
+					<button class="button" type="button" onclick={() => (showAddModal = true)}>
+						Add expense
+					</button>
+					<button class="button button--ghost" type="button" onclick={openImport}>
+						Import CSV
+					</button>
+				</div>
 			{/if}
-		</p>
+		</div>
 	{:else}
+		<div class="table-scroll" use:scrollable={'Expenses table'}>
 		<table class="table">
+			<caption class="visually-hidden">
+				{data.expenses.length} expenses, newest first. Each row can be selected for bulk tagging,
+				and rows with notes or a linked fund withdrawal can be expanded for detail.
+			</caption>
 			<thead>
 				<tr class="table__head">
-					<th class="table__cell--select">
+					<th scope="col" class="table__cell--select">
 						<input
 							type="checkbox"
 							checked={allSelected}
@@ -546,17 +575,19 @@
 							aria-label="Select all expenses"
 						/>
 					</th>
-					<th class="table__cell--caret"></th>
-					<th>Date</th>
-					<th>Title</th>
-					<th>Categories</th>
-					<th class="table__cell--number">Amount</th>
-					<th></th>
+					<th scope="col" class="table__cell--caret">
+						<span class="visually-hidden">Expand row</span>
+					</th>
+					<th scope="col">Date</th>
+					<th scope="col">Title</th>
+					<th scope="col">Categories</th>
+					<th scope="col" class="table__cell--number">Amount</th>
+					<th scope="col"><span class="visually-hidden">Actions</span></th>
 				</tr>
 			</thead>
 			<tbody>
 				{#each data.expenses as expense (expense.id)}
-					<tr>
+					<tr aria-selected={selectedIds.includes(expense.id)}>
 						<td class="table__cell--select">
 							<input
 								type="checkbox"
@@ -575,12 +606,14 @@
 									aria-label="Toggle details for {expense.title}"
 									onclick={() => toggleExpanded(expense.id)}
 								>
-									▸
+									<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+										<path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+									</svg>
 								</button>
 							{/if}
 						</td>
-						<td>{formatDate(expense.date)}</td>
-						<td>{expense.title}</td>
+						<td class="table__cell--date">{formatDate(expense.date)}</td>
+						<th scope="row" class="table__cell--title">{expense.title}</th>
 						<td>
 							{#if expense.categoryLinks.length > 0}
 								<div class="category-tags">
@@ -596,7 +629,9 @@
 								—
 							{/if}
 						</td>
-						<td class="table__cell--number">{formatCents(expense.amountCents)}</td>
+						<td class="table__cell--number table__cell--emphasis">
+							{formatCents(expense.amountCents)}
+						</td>
 						<td>
 							{#if deletingId === expense.id}
 								<form
@@ -663,17 +698,18 @@
 				{/each}
 			</tbody>
 		</table>
+		</div>
 	{/if}
 </div>
 
 <style lang="scss">
-	@use 'variables' as *;
+	@use 'breakpoints' as *;
 
 	.expense-form__grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-		gap: $space-md;
-		margin-bottom: $space-md;
+		gap: var(--space-4);
+		margin-bottom: var(--space-4);
 
 		.field {
 			margin-bottom: 0;
@@ -688,43 +724,48 @@
 	.inline-form {
 		display: flex;
 		align-items: center;
-		gap: $space-md;
+		gap: var(--space-4);
 	}
 
 	.category-tags {
 		display: flex;
 		flex-wrap: wrap;
-		gap: $space-xs;
+		gap: var(--space-1);
 	}
 
 	.bulk-toolbar {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: $space-md;
-		margin-bottom: $space-md;
-		padding: $space-md;
-		background: $color-surface-raised;
-		border: 1px solid $color-border;
-		border-radius: $radius;
-		// Stay visible while scrolling a long list; sits flush below the sticky top
-		// nav (z-index 20) without overlapping it.
+		gap: var(--space-4);
+		margin-bottom: var(--space-4);
+		padding: var(--space-3) var(--space-4);
+		background: var(--surface-2);
+		border: 1px solid var(--border-strong);
+		border-radius: var(--radius-lg);
+		// Stays put while a long list scrolls. On mobile it clears the sticky top bar;
+		// on desktop there is no top bar, so it sits at the very top of the viewport.
 		position: sticky;
-		top: $header-height;
+		top: var(--header-h);
 		z-index: 10;
-		box-shadow: $shadow;
+		box-shadow: var(--shadow-2);
+		animation: bulk-in var(--dur-base) var(--ease-out);
+
+		@media (min-width: $breakpoint-lg) {
+			top: var(--space-3);
+		}
 
 		&__count {
-			font-size: $text-sm;
-			font-weight: 500;
-			color: $color-text-muted;
+			font-size: var(--text-sm);
+			font-weight: 600;
+			color: var(--text-primary);
 		}
 
 		&__group {
 			display: flex;
 			flex-wrap: wrap;
 			align-items: center;
-			gap: $space-sm;
+			gap: var(--space-2);
 		}
 
 		&__picker {
@@ -738,63 +779,62 @@
 		}
 	}
 
+	@keyframes bulk-in {
+		from {
+			opacity: 0;
+			transform: translateY(-6px);
+		}
+	}
+
 	.table__cell--select {
-		width: 2rem;
+		width: 2.25rem;
 		padding-right: 0;
 
 		input {
 			cursor: pointer;
+			// Native checkboxes are ~13px; the WCAG 2.2 target floor is 24.
+			inline-size: 16px;
+			block-size: 16px;
+			accent-color: var(--accent);
 		}
 	}
 
 	.table__cell--caret {
-		width: 2rem;
+		width: 2.25rem;
 		padding-right: 0;
 	}
 
-	.caret {
-		background: none;
-		border: none;
-		cursor: pointer;
-		font-size: $text-base;
-		color: $color-text-muted;
-		padding: $space-xs;
-		line-height: 1;
-		transition: transform 0.15s ease;
-
-		&--open {
-			transform: rotate(90deg);
-		}
-	}
-
-	.detail-row > td {
-		background: $color-bg;
-		padding: $space-md $space-lg;
+	.table__cell--title {
+		font-weight: 500;
 	}
 
 	.detail {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-		gap: $space-md $space-lg;
+		gap: var(--space-4) var(--space-5);
 		margin: 0;
+		padding: var(--space-4);
+		background: var(--surface-1);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-md);
 
 		&__item--wide {
 			grid-column: 1 / -1;
 		}
 
 		&__label {
-			font-size: $text-sm;
-			color: $color-text-muted;
-			margin-bottom: $space-xs;
+			font-size: var(--text-sm);
+			color: var(--text-secondary);
+			margin-bottom: var(--space-1);
 		}
 
 		&__value {
 			margin: 0;
-			font-size: $text-sm;
+			font-size: var(--text-sm);
 		}
 
 		&__muted {
-			color: $color-text-muted;
+			color: var(--text-secondary);
 		}
 	}
 
@@ -802,92 +842,98 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: $space-sm;
-		margin-bottom: $space-md;
+		gap: var(--space-2);
+		margin-bottom: var(--space-4);
 
 		&__label {
-			font-size: $text-sm;
+			font-size: var(--text-sm);
 			font-weight: 500;
-			color: $color-text-muted;
+			color: var(--text-secondary);
 		}
 	}
 
 	.duplicate-hint {
-		margin: 0 0 $space-md;
-		color: $color-text-muted;
-		font-size: $text-sm;
+		margin: 0 0 var(--space-4);
+		color: var(--text-secondary);
+		font-size: var(--text-sm);
 	}
 
 	.form-error {
-		color: $color-danger;
-		font-size: $text-sm;
+		margin: 0 0 var(--space-4);
+		padding: var(--space-3) var(--space-4);
+		border: 1px solid color-mix(in oklab, var(--neg) 40%, transparent);
+		border-left: 3px solid var(--neg);
+		border-radius: var(--radius-md);
+		background: var(--neg-soft);
+		color: var(--text-primary);
+		font-size: var(--text-sm);
 	}
 
 	.page-header__actions {
 		display: flex;
-		gap: $space-sm;
+		gap: var(--space-2);
 	}
 
 	.import-hint {
-		margin: 0 0 $space-md;
-		font-size: $text-sm;
-		color: $color-text-muted;
+		margin: 0 0 var(--space-4);
+		font-size: var(--text-sm);
+		color: var(--text-secondary);
 
 		code {
-			background: $color-surface-raised;
-			padding: 0 $space-xs;
+			background: var(--surface-2);
+			padding: 0 var(--space-1);
 			border-radius: 4px;
 		}
 	}
 
 	.import-file {
-		margin-bottom: $space-md;
+		margin-bottom: var(--space-4);
 	}
 
 	.import-status {
-		margin: 0 0 $space-md;
-		font-size: $text-sm;
-		color: $color-text-muted;
+		margin: 0 0 var(--space-4);
+		font-size: var(--text-sm);
+		color: var(--text-secondary);
 	}
 
 	.import-progress {
 		display: flex;
 		align-items: center;
-		gap: $space-sm;
-		margin-bottom: $space-md;
+		gap: var(--space-2);
+		margin-bottom: var(--space-4);
 
 		&__count {
-			font-size: $text-sm;
-			color: $color-text-muted;
+			font-size: var(--text-sm);
+			color: var(--text-secondary);
 			white-space: nowrap;
 			font-variant-numeric: tabular-nums;
 		}
 	}
 
 	.import-summary {
-		margin: 0 0 $space-sm;
+		margin: 0 0 var(--space-2);
 		font-weight: 500;
 	}
 
 	.import-errors {
-		margin-bottom: $space-md;
+		margin-bottom: var(--space-4);
 		max-height: 12rem;
 		overflow-y: auto;
 
 		&__title {
-			margin: 0 0 $space-xs;
-			font-size: $text-sm;
-			color: $color-danger;
+			margin: 0 0 var(--space-1);
+			font-size: var(--text-sm);
+			color: var(--neg);
 		}
 
 		&__list {
 			margin: 0;
-			padding-left: $space-lg;
-			font-size: $text-sm;
-			color: $color-text-muted;
+			padding-left: var(--space-5);
+			font-size: var(--text-sm);
+			color: var(--text-secondary);
 
 			li {
-				margin-bottom: $space-xs;
+				margin-bottom: var(--space-1);
 			}
 		}
 	}
