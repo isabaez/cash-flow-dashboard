@@ -1,0 +1,7 @@
+// Breakpoints are the one design value that cannot be a CSS custom property:
+// media queries are evaluated before custom properties resolve, so `@media
+// (min-width: var(--x))` never matches. They stay real Sass numbers.
+
+$breakpoint-md: 768px;
+// Sidebar appears at this width; below it the drawer is used.
+$breakpoint-lg: 1024px;

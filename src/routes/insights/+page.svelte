@@ -74,6 +74,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Insights · Cash Flow</title>
+</svelte:head>
+
 <div class="page-header">
 	<h1>Insights</h1>
 </div>
@@ -104,15 +108,23 @@
 		</button>
 
 		{#if section.status === 'loading'}
-			<p class="insights__status">Preparing the data and starting the model…</p>
+			<p class="insights__status" role="status">Preparing the data and starting the model…</p>
 		{/if}
 
 		{#if section.status === 'error'}
-			<div class="insights__error"><p>{section.errorHint}</p></div>
+			<div class="insights__error" role="alert"><p>{section.errorHint}</p></div>
 		{/if}
 
 		{#if section.output}
-			<div class="insights__output">
+			<!-- The model streams token by token. `polite` + `aria-busy` means a screen
+			     reader waits for a pause rather than re-reading on every chunk, and the
+			     analysis is announced once it settles. -->
+			<div
+				class="insights__output"
+				aria-live="polite"
+				aria-atomic="false"
+				aria-busy={section.status === 'streaming'}
+			>
 				<ul class="insights__list">
 					{#each toBlocks(section.output) as block}
 						{#if block.bullet}
@@ -154,49 +166,48 @@
 </div>
 
 <style lang="scss">
-	@use 'variables' as *;
-
+	
 	.insights-intro {
-		margin: 0 0 $space-lg;
-		color: $color-text-muted;
-		font-size: $text-sm;
+		margin: 0 0 var(--space-5);
+		color: var(--text-secondary);
+		font-size: var(--text-sm);
 		max-width: 70ch;
 	}
 
 	.insights-stack {
 		display: flex;
 		flex-direction: column;
-		gap: $space-lg;
+		gap: var(--space-5);
 	}
 
 	.insights {
 		&__title {
-			font-size: $text-lg;
-			margin: 0 0 $space-xs;
+			font-size: var(--text-lg);
+			margin: 0 0 var(--space-1);
 		}
 
 		&__blurb {
-			margin: 0 0 $space-md;
-			color: $color-text-muted;
-			font-size: $text-sm;
+			margin: 0 0 var(--space-4);
+			color: var(--text-secondary);
+			font-size: var(--text-sm);
 			max-width: 70ch;
 		}
 
 		&__status {
-			margin: $space-lg 0 0;
-			color: $color-text-muted;
-			font-size: $text-sm;
+			margin: var(--space-5) 0 0;
+			color: var(--text-secondary);
+			font-size: var(--text-sm);
 		}
 
 		&__error {
-			margin-top: $space-lg;
-			padding: $space-md;
-			border: 1px solid $color-border;
-			border-left: 3px solid $color-danger;
-			border-radius: $radius;
-			background: $color-surface-raised;
-			color: $color-text;
-			font-size: $text-sm;
+			margin-top: var(--space-5);
+			padding: var(--space-3) var(--space-4);
+			border: 1px solid color-mix(in oklab, var(--neg) 40%, transparent);
+			border-left: 3px solid var(--neg);
+			border-radius: var(--radius-md);
+			background: var(--neg-soft);
+			color: var(--text-primary);
+			font-size: var(--text-sm);
 
 			p {
 				margin: 0;
@@ -204,17 +215,17 @@
 		}
 
 		&__output {
-			margin-top: $space-lg;
-			padding-top: $space-lg;
-			border-top: 1px solid $color-border;
+			margin-top: var(--space-5);
+			padding-top: var(--space-5);
+			border-top: 1px solid var(--border-subtle);
 		}
 
 		&__list {
 			margin: 0;
-			padding-left: $space-lg;
+			padding-left: var(--space-5);
 			display: flex;
 			flex-direction: column;
-			gap: $space-sm;
+			gap: var(--space-2);
 
 			li {
 				line-height: 1.5;
@@ -224,17 +235,18 @@
 		&__para {
 			list-style: none;
 			margin: 0;
-			margin-left: -$space-lg;
-			color: $color-text-muted;
+			margin-left: calc(-1 * var(--space-5));
+			color: var(--text-secondary);
 		}
 
+		// The global prefers-reduced-motion rule stops this blinking.
 		&__cursor {
 			display: inline-block;
 			width: 8px;
 			height: 1em;
 			margin-left: 2px;
 			vertical-align: text-bottom;
-			background: $color-primary;
+			background: var(--accent);
 			animation: blink 1s steps(2) infinite;
 		}
 	}

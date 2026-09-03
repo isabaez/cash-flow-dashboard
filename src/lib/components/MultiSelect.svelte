@@ -25,6 +25,7 @@
 	} = $props();
 
 	let open = $state(false);
+	const panelId = $props.id();
 	// svelte-ignore state_referenced_locally -- `selected` intentionally seeds initial state only
 	let checkedIds = $state<number[]>([...selected]);
 	let trigger = $state<HTMLButtonElement>();
@@ -100,7 +101,14 @@
 		<span class="multi-select__chevron" aria-hidden="true">▾</span>
 	</button>
 
-	<div class="multi-select__panel" class:multi-select__panel--open={open} role="group" aria-label={label}>
+	<div
+		id={panelId}
+		class="multi-select__panel"
+		class:multi-select__panel--open={open}
+		role="group"
+		aria-label={label}
+		inert={!open}
+	>
 		{#if options.length === 0}
 			<p class="multi-select__empty">No options yet.</p>
 		{:else}
@@ -111,7 +119,6 @@
 				bind:value={query}
 				placeholder="Filter…"
 				aria-label="Filter options"
-				tabindex={open ? undefined : -1}
 			/>
 			<!-- Render every option so a checked-but-filtered-out box still submits;
 			     non-matching options are hidden with CSS, not unmounted. -->
@@ -122,7 +129,6 @@
 						{name}
 						value={option.id}
 						checked={checkedIds.includes(option.id)}
-						tabindex={open ? undefined : -1}
 						onchange={() => toggle(option.id)}
 					/>
 					{option.name}
@@ -136,8 +142,7 @@
 </div>
 
 <style lang="scss">
-	@use 'variables' as *;
-
+	
 	.multi-select {
 		position: relative;
 
@@ -145,7 +150,7 @@
 			display: flex;
 			align-items: center;
 			justify-content: space-between;
-			gap: $space-sm;
+			gap: var(--space-2);
 			width: 100%;
 			text-align: left;
 			cursor: pointer;
@@ -157,28 +162,28 @@
 			white-space: nowrap;
 
 			&--empty {
-				color: $color-text-muted;
+				color: var(--text-secondary);
 			}
 		}
 
 		&__chevron {
-			color: $color-text-muted;
+			color: var(--text-secondary);
 			flex-shrink: 0;
 		}
 
 		&__panel {
 			position: absolute;
 			z-index: 10;
-			top: calc(100% + #{$space-xs});
+			top: calc(100% + var(--space-1));
 			left: 0;
 			right: 0;
 			max-height: 240px;
 			overflow-y: auto;
-			padding: $space-sm;
-			background: $color-surface-raised;
-			border: 1px solid $color-border;
-			border-radius: $radius;
-			box-shadow: $shadow;
+			padding: var(--space-2);
+			background: var(--surface-2);
+			border: 1px solid var(--border-strong);
+			border-radius: var(--radius-md);
+			box-shadow: var(--shadow-2);
 			visibility: hidden;
 
 			&--open {
@@ -188,21 +193,21 @@
 
 		&__search {
 			width: 100%;
-			margin-bottom: $space-sm;
-			font-size: $text-sm;
+			margin-bottom: var(--space-2);
+			font-size: var(--text-sm);
 		}
 
 		&__option {
 			display: flex;
 			align-items: center;
-			gap: $space-sm;
-			padding: $space-xs $space-sm;
+			gap: var(--space-2);
+			padding: var(--space-1) var(--space-2);
 			border-radius: 6px;
-			font-size: $text-sm;
+			font-size: var(--text-sm);
 			cursor: pointer;
 
 			&:hover {
-				background: rgba(124, 154, 255, 0.1);
+				background: var(--accent-soft);
 			}
 
 			&--hidden {
@@ -212,9 +217,9 @@
 
 		&__empty {
 			margin: 0;
-			padding: $space-xs $space-sm;
-			color: $color-text-muted;
-			font-size: $text-sm;
+			padding: var(--space-1) var(--space-2);
+			color: var(--text-secondary);
+			font-size: var(--text-sm);
 		}
 	}
 </style>

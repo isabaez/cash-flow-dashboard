@@ -4,6 +4,7 @@
 	import FilterBar from '$lib/components/FilterBar.svelte';
 	import { formatBps, formatCents } from '$lib/money';
 	import { formatDate } from '$lib/date';
+	import { scrollable } from '$lib/actions';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -90,6 +91,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Income · Cash Flow</title>
+</svelte:head>
+
 <div class="page-header">
 	<h1>Income</h1>
 	<button class="button" type="button" onclick={() => (showAddModal = true)}>Add paycheck</button>
@@ -103,7 +108,7 @@
 />
 
 {#if form?.error}
-	<p class="form-error">{form.error}</p>
+	<p class="form-error" role="alert">{form.error}</p>
 {/if}
 
 {#snippet paycheckFields(paycheck: Paycheck | null, idPrefix: string)}
@@ -159,7 +164,7 @@
 
 <Modal bind:open={showAddModal} title="New paycheck">
 	{#if form?.error}
-		<p class="form-error">{form.error}</p>
+		<p class="form-error" role="alert">{form.error}</p>
 	{/if}
 	{#key showAddModal}
 		<form
@@ -180,7 +185,7 @@
 
 <Modal bind:open={showEditModal} title="Edit paycheck">
 	{#if form?.error}
-		<p class="form-error">{form.error}</p>
+		<p class="form-error" role="alert">{form.error}</p>
 	{/if}
 	<!-- Key on the open flag too: the post-save form reset empties the DOM inputs,
 	     so reopening the same paycheck must remount the form with fresh values. -->
@@ -205,7 +210,7 @@
 
 <Modal bind:open={showDuplicateModal} title="Duplicate paycheck">
 	{#if form?.error}
-		<p class="form-error">{form.error}</p>
+		<p class="form-error" role="alert">{form.error}</p>
 	{/if}
 	{#key showDuplicateModal}
 	{#if duplicating}
@@ -255,25 +260,37 @@
 
 <div class="card">
 	{#if data.paychecks.length === 0}
-		<p class="empty-state">
+		<div class="empty-state">
 			{#if data.filters.month || data.filters.year}
-				No paychecks match the current filters.
+				<p class="empty-state__title">No paychecks match the current filters.</p>
+				<p class="empty-state__hint">Clear a filter above to widen the search.</p>
 			{:else}
-				No paychecks yet.
+				<p class="empty-state__title">No paychecks yet.</p>
+				<p class="empty-state__hint">
+					Add one, then break it into deductions and fund allocations.
+				</p>
 			{/if}
-		</p>
+		</div>
 	{:else}
-		<table class="table">
+		<div class="table-scroll" use:scrollable={'Paychecks table'}>
+		<table class="table table--dense">
+			<caption class="visually-hidden">
+				{data.paychecks.length} paychecks, newest first, showing gross pay, net after deductions and
+				the amount funnelled into funds. Every row can be expanded to edit its deductions and
+				allocations.
+			</caption>
 			<thead>
 				<tr class="table__head">
-					<th class="table__cell--caret"></th>
-					<th>Date</th>
-					<th>Source</th>
-					<th>Owner</th>
-					<th class="table__cell--number">Gross</th>
-					<th class="table__cell--number">Net</th>
-					<th class="table__cell--number">Allocated</th>
-					<th></th>
+					<th scope="col" class="table__cell--caret">
+						<span class="visually-hidden">Expand row</span>
+					</th>
+					<th scope="col">Date</th>
+					<th scope="col">Source</th>
+					<th scope="col">Owner</th>
+					<th scope="col" class="table__cell--number">Gross</th>
+					<th scope="col" class="table__cell--number">Net</th>
+					<th scope="col" class="table__cell--number">Allocated</th>
+					<th scope="col"><span class="visually-hidden">Actions</span></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -288,14 +305,18 @@
 								aria-label="Toggle deductions and allocations for {paycheck.title}"
 								onclick={() => toggleExpanded(paycheck.id)}
 							>
-								▸
+								<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+									<path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+								</svg>
 							</button>
 						</td>
-						<td>{formatDate(paycheck.date)}</td>
-						<td>{paycheck.title}</td>
+						<td class="table__cell--date">{formatDate(paycheck.date)}</td>
+						<th scope="row" class="table__cell--name">{paycheck.title}</th>
 						<td>{paycheck.owner}</td>
 						<td class="table__cell--number">{formatCents(paycheck.grossCents)}</td>
-						<td class="table__cell--number">{formatCents(netCents(paycheck))}</td>
+						<td class="table__cell--number table__cell--emphasis">
+							{formatCents(netCents(paycheck))}
+						</td>
 						<td class="table__cell--number">{formatCents(allocatedCents(paycheck))}</td>
 						<td>
 							{#if deletingId === paycheck.id}
@@ -732,17 +753,17 @@
 				{/each}
 			</tbody>
 		</table>
+		</div>
 	{/if}
 </div>
 
 <style lang="scss">
-	@use 'variables' as *;
-
+	
 	.paycheck-form__grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-		gap: $space-md;
-		margin-bottom: $space-md;
+		gap: var(--space-4);
+		margin-bottom: var(--space-4);
 
 		.field {
 			margin-bottom: 0;
@@ -758,81 +779,60 @@
 		display: flex;
 		align-items: center;
 		justify-content: flex-end;
-		gap: $space-sm;
-	}
-
-	.confirm-text {
-		font-size: $text-sm;
-		color: $color-text-muted;
+		gap: var(--space-2);
 	}
 
 	.table__cell--caret {
-		width: 2rem;
+		width: 2.25rem;
 		padding-right: 0;
 	}
 
-	.caret {
-		background: none;
-		border: none;
-		cursor: pointer;
-		font-size: $text-base;
-		color: $color-text-muted;
-		padding: $space-xs;
-		line-height: 1;
-		transition: transform 0.15s ease;
-
-		&--open {
-			transform: rotate(90deg);
-		}
-	}
-
-	.detail-row > td {
-		background: $color-bg;
-		padding: $space-md $space-lg;
+	.table__cell--name {
+		font-weight: 500;
 	}
 
 	.detail {
 		display: flex;
 		flex-direction: column;
-		gap: $space-lg;
+		gap: var(--space-5);
 
 		&__section {
 			margin: 0;
 		}
 
 		&__title {
-			font-size: $text-base;
-			margin-bottom: $space-sm;
+			font-size: var(--text-base);
+			margin-bottom: var(--space-2);
 		}
 
 		&__empty {
-			color: $color-text-muted;
-			font-size: $text-sm;
-			margin: 0 0 $space-md;
+			color: var(--text-secondary);
+			font-size: var(--text-sm);
+			margin: 0 0 var(--space-4);
 		}
 
 		&__list {
-			margin-bottom: $space-md;
-			background: $color-surface;
-			border-radius: $radius;
+			margin-bottom: var(--space-4);
+			background: var(--surface-1);
+			border-radius: var(--radius-md);
 		}
 	}
 
 	.badge {
 		display: inline-block;
-		padding: 0.1rem $space-sm;
-		border-radius: $radius;
-		background: $color-surface-raised;
-		border: 1px solid $color-border;
-		color: $color-text-muted;
-		font-size: $text-sm;
+		padding: 0.1rem var(--space-2);
+		border-radius: var(--radius-md);
+		background: var(--surface-2);
+		border: 1px solid var(--border-subtle);
+		color: var(--text-secondary);
+		font-size: var(--text-sm);
 		white-space: nowrap;
 	}
 
 	.rule-form {
 		display: flex;
 		align-items: flex-end;
-		gap: $space-md;
+		gap: var(--space-4);
 		flex-wrap: wrap;
 
 		.field {
@@ -843,13 +843,19 @@
 	}
 
 	.hint {
-		margin: $space-sm 0 0;
-		color: $color-text-muted;
-		font-size: $text-sm;
+		margin: var(--space-2) 0 0;
+		color: var(--text-secondary);
+		font-size: var(--text-sm);
 	}
 
 	.form-error {
-		color: $color-danger;
-		font-size: $text-sm;
+		margin: 0 0 var(--space-4);
+		padding: var(--space-3) var(--space-4);
+		border: 1px solid color-mix(in oklab, var(--neg) 40%, transparent);
+		border-left: 3px solid var(--neg);
+		border-radius: var(--radius-md);
+		background: var(--neg-soft);
+		color: var(--text-primary);
+		font-size: var(--text-sm);
 	}
 </style>

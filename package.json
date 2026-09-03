@@ -9,6 +9,7 @@
 		"preview": "vite preview",
 		"start": "node build",
 		"check": "svelte-check --tsconfig ./tsconfig.json",
+		"check:contrast": "node scripts/check-contrast.mjs",
 		"db:push": "drizzle-kit push",
 		"db:studio": "drizzle-kit studio",
 		"docker:up": "./start.sh",

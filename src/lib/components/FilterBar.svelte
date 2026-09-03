@@ -104,18 +104,17 @@
 </div>
 
 <style lang="scss">
-	@use 'variables' as *;
-
+	
 	.filter-bar {
 		display: flex;
 		flex-wrap: wrap;
-		gap: $space-md;
-		margin-bottom: $space-md;
+		gap: var(--space-4);
+		margin-bottom: var(--space-4);
 
 		&__filter {
 			display: flex;
 			align-items: center;
-			gap: $space-sm;
+			gap: var(--space-2);
 		}
 
 		&__filter--category {
@@ -127,9 +126,9 @@
 		}
 
 		&__label {
-			font-size: $text-sm;
+			font-size: var(--text-sm);
 			font-weight: 500;
-			color: $color-text-muted;
+			color: var(--text-secondary);
 			white-space: nowrap;
 		}
 	}
