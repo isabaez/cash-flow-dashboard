@@ -49,12 +49,18 @@
 				.getPropertyValue('--font-sans')
 				.trim();
 			// Respect the OS motion setting — the global CSS rule cannot reach a canvas.
-			Chart.defaults.animation = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-				? false
-				: { duration: 400 };
+			// Set per chart, never by replacing `Chart.defaults.animation`: Chart.js reads
+			// that object's keys to decide which settings each animation copies, so
+			// swapping it for `{ duration }` drops `type` and breaks colour interpolation
+			// on hover ("this._fn is not a function").
+			const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+			const animation = reducedMotion ? false : { duration: 400 };
 
 			chart?.destroy();
-			chart = new Chart(canvas, config as never);
+			chart = new Chart(canvas, {
+				...config,
+				options: { ...config.options, animation }
+			} as never);
 			renderedTheme = resolved;
 		})();
 
