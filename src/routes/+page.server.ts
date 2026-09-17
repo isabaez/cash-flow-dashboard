@@ -10,9 +10,17 @@ import {
 	paycheckDeductions,
 	paychecks
 } from '$lib/server/db/schema';
-import { and, eq, like, notExists, sql, sum } from 'drizzle-orm';
+import { and, eq, inArray, like, notExists, sql, sum } from 'drizzle-orm';
 import { monthLabel, monthRange } from '$lib/date';
 import type { PageServerLoad } from './$types';
+
+/**
+ * The Snapshot card: the handful of everyday categories worth a glance each
+ * month, in display order. Matched by name, so a category that does not exist
+ * (or has no spend yet this month) simply reads $0.00 rather than vanishing —
+ * the row of tiles stays stable from month to month.
+ */
+const SNAPSHOT_CATEGORIES = ['Groceries', 'Home Goods', 'Fuel', 'Therapy'];
 
 /**
  * Fund bands (chart 2) — funds have no color column, so each is assigned a slot in
@@ -58,6 +66,7 @@ export const load: PageServerLoad = async ({ url }) => {
 		fundWithdrawalRows,
 		fundRows,
 		categoryRows,
+		snapshotRows,
 		uncategorizedRows
 	] = await Promise.all([
 		db
@@ -128,6 +137,18 @@ export const load: PageServerLoad = async ({ url }) => {
 			.innerJoin(expenses, eq(expenseCategories.expenseId, expenses.id))
 			.innerJoin(categories, eq(expenseCategories.categoryId, categories.id))
 			.where(categoryDateWhere)
+			.groupBy(categories.id),
+		// Snapshot card: this month's spend for each watched category. Scoped to the
+		// current month only, and independent of the category chart's period filter.
+		db
+			.select({
+				name: categories.name,
+				cents: sum(expenses.amountCents).mapWith(Number)
+			})
+			.from(expenseCategories)
+			.innerJoin(expenses, eq(expenseCategories.expenseId, expenses.id))
+			.innerJoin(categories, eq(expenseCategories.categoryId, categories.id))
+			.where(and(like(expenses.date, `${currentMonth}-%`), inArray(categories.name, SNAPSHOT_CATEGORIES)))
 			.groupBy(categories.id),
 		// Expenses in the selected period carrying no category → an "Uncategorized" bar.
 		db
@@ -230,6 +251,14 @@ export const load: PageServerLoad = async ({ url }) => {
 		});
 	}
 
+	// Snapshot tiles in the declared order, zero-filled so a quiet category still
+	// holds its place in the row.
+	const snapshotByName = new Map(snapshotRows.map((r) => [r.name, r.cents]));
+	const snapshot = SNAPSHOT_CATEGORIES.map((name) => ({
+		name,
+		cents: snapshotByName.get(name) ?? 0
+	}));
+
 	// Filter dropdown options — months that actually have expense data, newest first
 	// (expenseRows is already grouped by expense month).
 	const availableMonths = expenseRows.map((r) => r.month).sort((a, b) => b.localeCompare(a));
@@ -289,22 +318,24 @@ export const load: PageServerLoad = async ({ url }) => {
 			? Math.round(completeIdx.reduce((total, i) => total + series[i], 0) / completeIdx.length)
 			: null;
 
-	// The most recent complete month is what each average tile compares against.
-	const latestIdx = completeIdx.at(-1) ?? null;
+	// The month in progress is what each average tile compares against — "how am I
+	// tracking right now?". It is deliberately NOT one of the months the average is
+	// built from (see completeIdx above): month-to-date is a partial total, so it
+	// would drag the baseline down and then be measured against it. Early in a
+	// month every flow reads below average for the obvious reason, which is why the
+	// tiles label this "<Month> so far" rather than implying a finished comparison.
+	const currentIdx = months.indexOf(currentMonth);
 
 	/**
-	 * One average tile: the all-time mean, plus how the latest complete month sits
-	 * against it. The delta is null when there's nothing to average or the latest
-	 * complete month *is* the only sample (comparing it to itself says nothing).
+	 * One average tile: the all-time mean, plus how the month in progress sits
+	 * against it. The delta is null when there is nothing to average, or the
+	 * current month has no rows on the axis at all.
 	 */
 	const average = (series: number[]) => {
 		const avgCents = meanCents(series);
 		return {
 			cents: avgCents ?? 0,
-			deltaCents:
-				avgCents !== null && latestIdx !== null && completeIdx.length > 1
-					? series[latestIdx] - avgCents
-					: null
+			deltaCents: avgCents !== null && currentIdx >= 0 ? series[currentIdx] - avgCents : null
 		};
 	};
 
@@ -314,6 +345,8 @@ export const load: PageServerLoad = async ({ url }) => {
 		/** First and last month on the axis, for the "All time · … – …" header line. */
 		rangeStart: months.length ? months[0] : null,
 		rangeEnd: months.length ? months[lastIdx] : null,
+		/** The in-progress month, for the "<Month> so far vs average" tile hints. */
+		currentMonth,
 		// A stock, not a flow: the latest balance on the axis (the partial month
 		// included — money already in a fund is not "partial") against last month's.
 		netWorth: {
@@ -333,6 +366,9 @@ export const load: PageServerLoad = async ({ url }) => {
 		flow,
 		fundSeries,
 		categoryBreakdown,
+		snapshot,
+		/** Month the snapshot covers, labelled on the client. */
+		snapshotMonth: currentMonth,
 		categoryPeriodLabel,
 		categoryFilter: { month: catMonth },
 		availableMonths,

@@ -83,6 +83,10 @@
 			gap: var(--space-4);
 			margin-top: auto;
 			padding-top: var(--space-1);
+			// The hint names a month ("Sep 2026 so far vs average"), so it is long
+			// enough to overflow a narrow tile — let it wrap instead of clipping.
+			flex-wrap: wrap;
+			min-inline-size: 0;
 		}
 
 		&__delta {
@@ -91,7 +95,9 @@
 			gap: var(--space-1);
 			font-size: var(--text-sm);
 			font-weight: 550;
+			// The arrow and the amount must never split; the hint after them may.
 			white-space: nowrap;
+			flex-wrap: wrap;
 
 			&--positive {
 				color: var(--pos);
@@ -109,6 +115,7 @@
 		&__hint {
 			color: var(--text-tertiary);
 			font-weight: 400;
+			white-space: normal;
 		}
 	}
 </style>

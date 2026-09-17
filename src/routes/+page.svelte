@@ -41,7 +41,9 @@
 	});
 
 	/** Shared by the three average tiles — their delta is the same comparison. */
-	const averageHint = 'this month vs average';
+	// The delta on an average tile is the month in progress, so the hint says so:
+	// a month-to-date total sitting below a full-month average is expected, not news.
+	const averageHint = $derived(`${monthLabel(data.kpis.currentMonth)} so far vs average`);
 
 	// Shared option fragments (Chart.js configs are plain objects).
 	const noAspect = { responsive: true, maintainAspectRatio: false } as const;
@@ -284,6 +286,22 @@
 		/>
 	</section>
 
+	<!-- Everyday categories worth a glance, this month only — deliberately a
+	     different question from the all-time tiles above. -->
+	<section class="card snapshot" aria-labelledby="snapshot-heading">
+		<h2 class="snapshot__heading" id="snapshot-heading">
+			Snapshot <span class="snapshot__month">{monthLabel(data.snapshotMonth)} so far</span>
+		</h2>
+		<dl class="snapshot__grid">
+			{#each data.snapshot as item (item.name)}
+				<div class="snapshot__item">
+					<dt class="snapshot__label">{item.name}</dt>
+					<dd class="snapshot__value money">{formatCents(item.cents)}</dd>
+				</div>
+			{/each}
+		</dl>
+	</section>
+
 	<!-- The one chart that answers "where is the money going?" gets the width. -->
 	<div class="card chart-card chart-card--primary">
 		{#if hasCashFlow}
@@ -371,6 +389,49 @@
 
 <style lang="scss">
 	
+	.snapshot {
+		margin-bottom: var(--space-5);
+
+		&__heading {
+			display: flex;
+			align-items: baseline;
+			gap: var(--space-2);
+			margin: 0 0 var(--space-4);
+			font-size: var(--text-md);
+			font-weight: 600;
+			letter-spacing: -0.015em;
+		}
+
+		&__month {
+			font-size: var(--text-sm);
+			font-weight: 400;
+			color: var(--text-tertiary);
+		}
+
+		&__grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
+			gap: var(--space-4);
+			margin: 0;
+		}
+
+		&__item {
+			min-inline-size: 0;
+		}
+
+		&__label {
+			font-size: var(--text-sm);
+			color: var(--text-secondary);
+		}
+
+		&__value {
+			margin: var(--space-1) 0 0;
+			font-size: var(--text-lg);
+			font-weight: 600;
+			color: var(--text-primary);
+		}
+	}
+
 	.page-header__meta {
 		margin: var(--space-1) 0 0;
 		font-size: var(--text-sm);
