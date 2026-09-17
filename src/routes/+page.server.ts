@@ -10,14 +10,17 @@ import {
 	paycheckDeductions,
 	paychecks
 } from '$lib/server/db/schema';
-import { and, eq, gte, like, lte, notExists, sql, sum } from 'drizzle-orm';
-import { monthLabel, monthRange, nextMonth } from '$lib/date';
+import { and, eq, inArray, like, notExists, sql, sum } from 'drizzle-orm';
+import { monthLabel, monthRange } from '$lib/date';
 import type { PageServerLoad } from './$types';
 
-/** Trailing months used to estimate each fund's monthly contribution rate. */
-const TREND_WINDOW = 6;
-/** How far the fund-growth projection extends, in months (matches the net-worth page). */
-const PROJECTION_MONTHS = 12;
+/**
+ * The Snapshot card: the handful of everyday categories worth a glance each
+ * month, in display order. Matched by name, so a category that does not exist
+ * (or has no spend yet this month) simply reads $0.00 rather than vanishing —
+ * the row of tiles stays stable from month to month.
+ */
+const SNAPSHOT_CATEGORIES = ['Groceries', 'Home Goods', 'Fuel', 'Therapy'];
 
 /**
  * Fund bands (chart 2) — funds have no color column, so each is assigned a slot in
@@ -39,42 +42,19 @@ export const load: PageServerLoad = async ({ url }) => {
 
 	const currentMonth = new Date().toISOString().slice(0, 7);
 
-	// Category chart (chart 3) date filter — scopes ONLY that chart. Modes are
-	// mutually exclusive; invalid params fall back to the default (current month).
+	// Category chart (chart 3) date filter — scopes ONLY that chart. The period
+	// dropdown offers exactly two states, so those are the only two parsed here:
+	// a valid `?month=YYYY-MM`, or no param at all. Anything else is all time.
 	const monthRaw = url.searchParams.get('month');
-	const yearRaw = url.searchParams.get('year');
-	const fromRaw = url.searchParams.get('from');
-	const toRaw = url.searchParams.get('to');
-	const isMonth = (v: string | null): v is string => !!v && /^\d{4}-\d{2}$/.test(v);
-	const catMonth = isMonth(monthRaw) ? monthRaw : null;
-	const catYear = !catMonth && yearRaw && /^\d{4}$/.test(yearRaw) ? yearRaw : null;
-	// Range applies only when both bounds are valid months and ordered.
-	const rangeActive =
-		!catMonth && !catYear && isMonth(fromRaw) && isMonth(toRaw) && fromRaw <= toRaw;
-	const catFrom = rangeActive ? fromRaw : null;
-	const catTo = rangeActive ? toRaw : null;
+	const catMonth = monthRaw && /^\d{4}-\d{2}$/.test(monthRaw) ? monthRaw : null;
 
-	// Shared WHERE for both category queries. With no filter applied it's undefined,
+	// Shared WHERE for both category queries. With no month applied it's undefined,
 	// so the chart shows all expenses across all time (drizzle ignores an undefined
 	// `where`, and `and(undefined, …)` drops the term).
-	const categoryDateWhere = catMonth
-		? like(expenses.date, `${catMonth}-%`)
-		: catYear
-			? like(expenses.date, `${catYear}-%`)
-			: rangeActive
-				? and(gte(expMonth, catFrom!), lte(expMonth, catTo!))
-				: undefined;
+	const categoryDateWhere = catMonth ? like(expenses.date, `${catMonth}-%`) : undefined;
 
 	// Human-readable label for the card title.
-	const categoryPeriodLabel = catMonth
-		? monthLabel(catMonth)
-		: catYear
-			? catYear
-			: rangeActive
-				? catFrom === catTo
-					? monthLabel(catFrom!)
-					: `${monthLabel(catFrom!)} – ${monthLabel(catTo!)}`
-				: 'All time';
+	const categoryPeriodLabel = catMonth ? monthLabel(catMonth) : 'All time';
 
 	const [
 		grossRows,
@@ -86,6 +66,7 @@ export const load: PageServerLoad = async ({ url }) => {
 		fundWithdrawalRows,
 		fundRows,
 		categoryRows,
+		snapshotRows,
 		uncategorizedRows
 	] = await Promise.all([
 		db
@@ -157,6 +138,18 @@ export const load: PageServerLoad = async ({ url }) => {
 			.innerJoin(categories, eq(expenseCategories.categoryId, categories.id))
 			.where(categoryDateWhere)
 			.groupBy(categories.id),
+		// Snapshot card: this month's spend for each watched category. Scoped to the
+		// current month only, and independent of the category chart's period filter.
+		db
+			.select({
+				name: categories.name,
+				cents: sum(expenses.amountCents).mapWith(Number)
+			})
+			.from(expenseCategories)
+			.innerJoin(expenses, eq(expenseCategories.expenseId, expenses.id))
+			.innerJoin(categories, eq(expenseCategories.categoryId, categories.id))
+			.where(and(like(expenses.date, `${currentMonth}-%`), inArray(categories.name, SNAPSHOT_CATEGORIES)))
+			.groupBy(categories.id),
 		// Expenses in the selected period carrying no category → an "Uncategorized" bar.
 		db
 			.select({ cents: sum(expenses.amountCents).mapWith(Number) })
@@ -212,10 +205,12 @@ export const load: PageServerLoad = async ({ url }) => {
 		)
 	};
 
-	// Chart 2: cumulative balance per savings fund over the shared axis — the
-	// net-worth running-total algorithm, applied per fund. Non-savings funds (e.g.
-	// the shared expenses pool) are excluded; this chart is about long-term growth.
-	// Colors by index among savings funds so each keeps a stable color.
+	// Chart 2: each savings fund's balance as it stood at the START of every month
+	// on the shared axis. The running total is read before the month's movements are
+	// applied, so a point answers "what was in this fund on the 1st?". Non-savings
+	// funds (e.g. the shared expenses pool) are excluded; this chart is about
+	// long-term growth. Colors by index among savings funds so each keeps a stable
+	// color.
 	const contribByFundMonth = new Map(fundContribRows.map((r) => [`${r.fundId}:${r.month}`, r.cents]));
 	const depositByFundMonth = new Map(fundDepositRows.map((r) => [`${r.fundId}:${r.month}`, r.cents]));
 	const withdrawalByFundMonth = new Map(
@@ -226,43 +221,18 @@ export const load: PageServerLoad = async ({ url }) => {
 		.map((fund, i) => {
 			let running = fund.initialCents;
 			const cents = months.map((m) => {
+				const startOfMonth = running;
 				running +=
 					(contribByFundMonth.get(`${fund.id}:${m}`) ?? 0) +
 					(depositByFundMonth.get(`${fund.id}:${m}`) ?? 0) -
 					(withdrawalByFundMonth.get(`${fund.id}:${m}`) ?? 0);
-				return running;
+				return startOfMonth;
 			});
 
-			// Dashed 12-month projection per fund, mirroring the net-worth page: extend
-			// the last balance forward at the average monthly change over the trailing
-			// window (or, with only one month of history, that month's net movement).
-			const last = cents.at(-1) ?? 0;
-			const trendMonths = Math.min(TREND_WINDOW, cents.length - 1);
-			const avgMonthlyCents =
-				trendMonths > 0
-					? Math.round((last - cents[cents.length - 1 - trendMonths]) / trendMonths)
-					: last - fund.initialCents;
-			const projectedCents: number[] = [];
-			let projected = last;
-			for (let p = 0; p < PROJECTION_MONTHS; p++) {
-				projected += avgMonthlyCents;
-				projectedCents.push(projected);
-			}
-
-			return { name: fund.name, colorSlot: i % PALETTE_SLOTS, cents, projectedCents };
+			return { name: fund.name, colorSlot: i % PALETTE_SLOTS, cents };
 		})
 		// Drop funds that never move and start at zero — pure noise.
 		.filter((f) => f.cents.some((c) => c !== 0));
-
-	// Future month keys shared by every fund's projection (empty when there's no history).
-	const projectionMonths: string[] = [];
-	if (months.length > 0) {
-		let m = months[months.length - 1];
-		for (let p = 0; p < PROJECTION_MONTHS; p++) {
-			m = nextMonth(m);
-			projectionMonths.push(m);
-		}
-	}
 
 	// Chart 3: category breakdown for the selected period, largest first, with an
 	// Uncategorized bar appended when there's uncategorized spend.
@@ -281,19 +251,25 @@ export const load: PageServerLoad = async ({ url }) => {
 		});
 	}
 
-	// Filter dropdown options — months/years that actually have expense data, newest
-	// first (expenseRows is already grouped by expense month).
+	// Snapshot tiles in the declared order, zero-filled so a quiet category still
+	// holds its place in the row.
+	const snapshotByName = new Map(snapshotRows.map((r) => [r.name, r.cents]));
+	const snapshot = SNAPSHOT_CATEGORIES.map((name) => ({
+		name,
+		cents: snapshotByName.get(name) ?? 0
+	}));
+
+	// Filter dropdown options — months that actually have expense data, newest first
+	// (expenseRows is already grouped by expense month).
 	const availableMonths = expenseRows.map((r) => r.month).sort((a, b) => b.localeCompare(a));
-	const availableYears = [...new Set(availableMonths.map((m) => m.slice(0, 4)))];
 
 	// --- Headline figures -----------------------------------------------------
 	// "Verdict first": the dashboard leads with how things are going, not with five
 	// charts of equal weight. Everything below is derived from series already
 	// computed above — no additional queries.
-
-	/** How many trailing points each sparkline shows. */
-	const SPARK_POINTS = 12;
-	const spark = (series: (number | null)[]) => series.slice(-SPARK_POINTS);
+	//
+	// The tiles are an ALL-TIME overview: one stock (net worth) and three monthly
+	// averages. Averages are per *month with data*, not per month on the axis.
 
 	// Net worth across EVERY fund (not just savings funds, unlike chart 2) — this is
 	// the same running-total rule the Net Worth page applies.
@@ -310,51 +286,76 @@ export const load: PageServerLoad = async ({ url }) => {
 
 	const netCashFlowCents = months.map((m, i) => netIncomeCents[i] - expensesCents[i]);
 
-	// Report on the current month where it exists; otherwise the latest month with
-	// data (a database whose newest row is in the past should not show all zeroes).
-	const currentIndex = months.indexOf(currentMonth);
-	const idx = currentIndex >= 0 ? currentIndex : months.length - 1;
-	const prev = idx - 1;
-	const has = idx >= 0;
-	const hasPrev = prev >= 0;
+	// Monthly money into savings: paycheck allocations plus manual deposits, less
+	// withdrawals, across savings funds only — the same set chart 2 bands. Summed
+	// from the per-fund maps already built above rather than re-queried.
+	const savingsFunds = fundRows.filter((fund) => fund.isSavings);
+	const savingsCents = months.map((m) =>
+		savingsFunds.reduce(
+			(total, fund) =>
+				total +
+				(contribByFundMonth.get(`${fund.id}:${m}`) ?? 0) +
+				(depositByFundMonth.get(`${fund.id}:${m}`) ?? 0) -
+				(withdrawalByFundMonth.get(`${fund.id}:${m}`) ?? 0),
+			0
+		)
+	);
 
-	/** Mean of the up-to-`window` months before `idx`, ignoring gaps. */
-	const trailingMean = (series: (number | null)[], window = 6): number | null => {
-		const slice = series.slice(Math.max(0, idx - window), idx).filter((v): v is number => v !== null);
-		return slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : null;
+	// Which months count toward an average. Two exclusions:
+	//  1. The in-progress current month — its totals are partial and would drag
+	//     every average down. This mirrors the `partial` rule in
+	//     lib/server/insights/digest.ts, so Dashboard and Insights agree.
+	//  2. Months `monthRange` padded in to keep the axis contiguous. They carry no
+	//     rows at all, so counting their zeroes would understate the averages; the
+	//     denominator is "months with data", not months.length.
+	const completeIdx = months.flatMap((m, i) =>
+		m !== currentMonth && monthKeys.has(m) ? [i] : []
+	);
+
+	/** Mean over the complete months, rounded to whole cents. null with no samples. */
+	const meanCents = (series: number[]): number | null =>
+		completeIdx.length
+			? Math.round(completeIdx.reduce((total, i) => total + series[i], 0) / completeIdx.length)
+			: null;
+
+	// The month in progress is what each average tile compares against — "how am I
+	// tracking right now?". It is deliberately NOT one of the months the average is
+	// built from (see completeIdx above): month-to-date is a partial total, so it
+	// would drag the baseline down and then be measured against it. Early in a
+	// month every flow reads below average for the obvious reason, which is why the
+	// tiles label this "<Month> so far" rather than implying a finished comparison.
+	const currentIdx = months.indexOf(currentMonth);
+
+	/**
+	 * One average tile: the all-time mean, plus how the month in progress sits
+	 * against it. The delta is null when there is nothing to average, or the
+	 * current month has no rows on the axis at all.
+	 */
+	const average = (series: number[]) => {
+		const avgCents = meanCents(series);
+		return {
+			cents: avgCents ?? 0,
+			deltaCents: avgCents !== null && currentIdx >= 0 ? series[currentIdx] - avgCents : null
+		};
 	};
 
-	const savingsRateNow = has ? savingsRate[idx] : null;
-	const savingsRateBaseline = trailingMean(savingsRate);
+	const lastIdx = months.length - 1;
 
 	const kpis = {
-		/** The month every "this month" figure below describes. */
-		periodMonth: has ? months[idx] : null,
+		/** First and last month on the axis, for the "All time · … – …" header line. */
+		rangeStart: months.length ? months[0] : null,
+		rangeEnd: months.length ? months[lastIdx] : null,
+		/** The in-progress month, for the "<Month> so far vs average" tile hints. */
+		currentMonth,
+		// A stock, not a flow: the latest balance on the axis (the partial month
+		// included — money already in a fund is not "partial") against last month's.
 		netWorth: {
-			cents: has ? netWorthSeries[idx] : 0,
-			deltaCents: hasPrev ? netWorthSeries[idx] - netWorthSeries[prev] : null,
-			trend: spark(netWorthSeries)
+			cents: months.length ? netWorthSeries[lastIdx] : 0,
+			deltaCents: lastIdx > 0 ? netWorthSeries[lastIdx] - netWorthSeries[lastIdx - 1] : null
 		},
-		netCashFlow: {
-			cents: has ? netCashFlowCents[idx] : 0,
-			deltaCents: hasPrev ? netCashFlowCents[idx] - netCashFlowCents[prev] : null,
-			trend: spark(netCashFlowCents)
-		},
-		savingsRate: {
-			percent: savingsRateNow,
-			// Compared against the trailing average rather than last month alone: a
-			// single lumpy month otherwise reads as a trend that is not there.
-			deltaPoints:
-				savingsRateNow !== null && savingsRateBaseline !== null
-					? savingsRateNow - savingsRateBaseline
-					: null,
-			trend: spark(savingsRate)
-		},
-		spend: {
-			cents: has ? expensesCents[idx] : 0,
-			deltaCents: hasPrev ? expensesCents[idx] - expensesCents[prev] : null,
-			trend: spark(expensesCents)
-		}
+		netCashFlow: average(netCashFlowCents),
+		spend: average(expensesCents),
+		savings: average(savingsCents)
 	};
 
 	return {
@@ -364,12 +365,13 @@ export const load: PageServerLoad = async ({ url }) => {
 		savingsRate,
 		flow,
 		fundSeries,
-		projectionMonths,
 		categoryBreakdown,
+		snapshot,
+		/** Month the snapshot covers, labelled on the client. */
+		snapshotMonth: currentMonth,
 		categoryPeriodLabel,
-		categoryFilter: { month: catMonth, year: catYear, from: catFrom, to: catTo },
+		categoryFilter: { month: catMonth },
 		availableMonths,
-		availableYears,
 		kpis,
 		/** Figures are point-in-time; say when they were computed. */
 		asOf: new Date().toISOString().slice(0, 10),
