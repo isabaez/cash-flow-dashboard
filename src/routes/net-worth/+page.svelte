@@ -86,7 +86,6 @@
 			? data.history[data.history.length - 1].cents - data.history[data.history.length - 2].cents
 			: null
 	);
-	const trend = $derived(data.history.slice(-12).map((p) => p.cents));
 
 	function share(balanceCents: number): string {
 		if (data.netWorthCents <= 0) return '—';
@@ -115,7 +114,6 @@
 		delta={monthDeltaCents}
 		deltaLabel={monthDeltaCents !== null ? formatCents(Math.abs(monthDeltaCents)) : ''}
 		hint="vs last month"
-		{trend}
 	/>
 	<StatTile
 		label="Avg monthly contribution{data.trendWindow > 0 ? ` (trailing ${data.trendWindow} mo)` : ''}"

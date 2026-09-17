@@ -5,8 +5,6 @@
 	 * The delta carries an arrow glyph and a signed number as well as colour, so the
 	 * direction survives greyscale and colour-vision deficiency (WCAG 2.2 SC 1.4.1).
 	 */
-	import Sparkline from '$lib/components/Sparkline.svelte';
-
 	let {
 		label,
 		value,
@@ -14,7 +12,6 @@
 		deltaLabel = '',
 		/** Which direction is good. Spending going up is bad; net worth going up is good. */
 		polarity = 'up-is-good',
-		trend = [],
 		hint = ''
 	}: {
 		label: string;
@@ -25,7 +22,6 @@
 		/** Pre-formatted magnitude, e.g. "$1,204" or "3.2 pts". */
 		deltaLabel?: string;
 		polarity?: 'up-is-good' | 'down-is-good';
-		trend?: (number | null)[];
 		hint?: string;
 	} = $props();
 
@@ -51,10 +47,6 @@
 			</span>
 		{:else if hint}
 			<span class="stat-tile__hint">{hint}</span>
-		{/if}
-
-		{#if trend.length > 1}
-			<div class="stat-tile__spark"><Sparkline values={trend} {tone} /></div>
 		{/if}
 	</div>
 </div>
@@ -117,11 +109,6 @@
 		&__hint {
 			color: var(--text-tertiary);
 			font-weight: 400;
-		}
-
-		&__spark {
-			flex: 0 1 96px;
-			min-width: 56px;
 		}
 	}
 </style>
