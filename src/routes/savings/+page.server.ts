@@ -4,6 +4,7 @@ import { eq, sql, sum } from 'drizzle-orm';
 import { fail } from '@sveltejs/kit';
 import { nextMonth } from '$lib/date';
 import { parseDollars } from '$lib/money';
+import { movementActions } from '$lib/server/fundMovements';
 import type { Actions, PageServerLoad } from './$types';
 
 /** Number of trailing months used to estimate the monthly contribution rate. */
@@ -136,19 +137,8 @@ export const load: PageServerLoad = async () => {
 	};
 };
 
-/** Read + validate the fields shared by deposits and withdrawals from a submitted form. */
-function readMovement(form: FormData) {
-	const amountCents = parseDollars(String(form.get('amount') ?? ''));
-	const date = String(form.get('date') ?? '').trim();
-	const notes = String(form.get('notes') ?? '').trim() || null;
-
-	if (amountCents === null || amountCents <= 0) return { error: 'Enter a valid amount' as const };
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: 'A valid date is required' as const };
-
-	return { values: { amountCents, date, notes } };
-}
-
 export const actions: Actions = {
+
 	createFund: async ({ request }) => {
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim();
@@ -204,89 +194,6 @@ export const actions: Actions = {
 		return { success: true };
 	},
 
-	createDeposit: async ({ request }) => {
-		const form = await request.formData();
-		const fundId = Number(form.get('fundId'));
-		if (!fundId) return fail(400, { error: 'Missing fund id' });
-
-		const parsed = readMovement(form);
-		if ('error' in parsed) return fail(400, { error: parsed.error });
-
-		await db.insert(fundDeposits).values({ fundId, ...parsed.values });
-		return { success: true };
-	},
-
-	updateDeposit: async ({ request }) => {
-		const form = await request.formData();
-		const id = Number(form.get('id'));
-		if (!id) return fail(400, { error: 'Missing deposit id' });
-
-		const existing = await db.query.fundDeposits.findFirst({ where: eq(fundDeposits.id, id) });
-		if (!existing) return fail(404, { error: 'Deposit not found' });
-
-		const parsed = readMovement(form);
-		if ('error' in parsed) return fail(400, { error: parsed.error });
-
-		await db.update(fundDeposits).set(parsed.values).where(eq(fundDeposits.id, id));
-		return { success: true };
-	},
-
-	deleteDeposit: async ({ request }) => {
-		const form = await request.formData();
-		const id = Number(form.get('id'));
-		if (!id) return fail(400, { error: 'Missing deposit id' });
-
-		const existing = await db.query.fundDeposits.findFirst({ where: eq(fundDeposits.id, id) });
-		if (!existing) return fail(404, { error: 'Deposit not found' });
-
-		await db.delete(fundDeposits).where(eq(fundDeposits.id, id));
-		return { success: true };
-	},
-
-	createWithdrawal: async ({ request }) => {
-		const form = await request.formData();
-		const fundId = Number(form.get('fundId'));
-		if (!fundId) return fail(400, { error: 'Missing fund id' });
-
-		const parsed = readMovement(form);
-		if ('error' in parsed) return fail(400, { error: parsed.error });
-
-		await db.insert(fundWithdrawals).values({ fundId, ...parsed.values });
-		return { success: true };
-	},
-
-	updateWithdrawal: async ({ request }) => {
-		const form = await request.formData();
-		const id = Number(form.get('id'));
-		if (!id) return fail(400, { error: 'Missing withdrawal id' });
-
-		const existing = await db.query.fundWithdrawals.findFirst({
-			where: eq(fundWithdrawals.id, id)
-		});
-		if (!existing) return fail(404, { error: 'Withdrawal not found' });
-		if (existing.expenseId !== null)
-			return fail(400, { error: 'This withdrawal mirrors an expense — edit it on the Expenses page' });
-
-		const parsed = readMovement(form);
-		if ('error' in parsed) return fail(400, { error: parsed.error });
-
-		await db.update(fundWithdrawals).set(parsed.values).where(eq(fundWithdrawals.id, id));
-		return { success: true };
-	},
-
-	deleteWithdrawal: async ({ request }) => {
-		const form = await request.formData();
-		const id = Number(form.get('id'));
-		if (!id) return fail(400, { error: 'Missing withdrawal id' });
-
-		const existing = await db.query.fundWithdrawals.findFirst({
-			where: eq(fundWithdrawals.id, id)
-		});
-		if (!existing) return fail(404, { error: 'Withdrawal not found' });
-		if (existing.expenseId !== null)
-			return fail(400, { error: 'This withdrawal mirrors an expense — delete it on the Expenses page' });
-
-		await db.delete(fundWithdrawals).where(eq(fundWithdrawals.id, id));
-		return { success: true };
-	}
+	// Deposits and withdrawals are shared with the per-fund transactions view.
+	...movementActions
 };
