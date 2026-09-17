@@ -139,7 +139,6 @@
 			type="line"
 			data={chartData}
 			options={chartOptions}
-			format={(v) => (v === null ? '—' : formatCents(Math.round(v * 100)))}
 			height="360px"
 		/>
 	{/if}

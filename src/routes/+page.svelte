@@ -4,7 +4,7 @@
 	// All aggregation happens server-side (see +page.server.ts); this file shapes the
 	// results into Chart.js configs. Series colours are read from the design tokens
 	// so a theme switch restyles every chart, and every chart is wrapped in
-	// ChartFigure, which pairs it with a caption, a summary and a data table.
+	// ChartFigure, which names it for assistive tech.
 	import ChartFigure from '$lib/components/ChartFigure.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import CategoryPeriodFilter from '$lib/components/CategoryPeriodFilter.svelte';
@@ -81,55 +81,33 @@
 		scales: { y: { ticks: currencyTicks } }
 	});
 
-	// --- 2. Cumulative fund growth (stacked area, one band per fund) -----------
-	// The axis extends 12 months past the history into the projection window.
-	const fundGrowthLabels = $derived([...labels, ...data.projectionMonths.map(monthLabel)]);
-	const fundGrowthData = $derived({
-		labels: fundGrowthLabels,
-		// Each fund contributes two datasets: the solid filled history band, and a
-		// dashed projection line anchored at the last actual point. They sit in
-		// separate stacks so the projected line continues from the top of each band
-		// without double-counting the anchor.
-		datasets: data.fundSeries.flatMap((fund, i) => {
+	// --- 2. Savings overview (one line per fund, not stacked) -----------------
+	// Each line is the fund's balance at the start of each month, drawn on its own
+	// rather than stacked: the question is how each fund stands, not what they add
+	// up to (net worth already answers that).
+	const savingsOverviewData = $derived({
+		labels,
+		datasets: data.fundSeries.map((fund, i) => {
 			const color = seriesColor(tokens, fund.colorSlot);
-			const future = data.projectionMonths.map(() => null);
-			const anchorIdx = fund.cents.length - 1;
-			return [
-				{
-					label: fund.name,
-					data: [...fund.cents.map(toDollars), ...future],
-					borderColor: color,
-					backgroundColor: softFill(color),
-					fill: true,
-					tension: 0.25,
-					// Marker shape as well as colour, so the bands stay separable without
-					// relying on hue alone.
-					pointStyle: pointStyle(i),
-					pointRadius: 2,
-					stack: 'actual'
-				},
-				{
-					label: `${fund.name} (projected)`,
-					data: [
-						...labels.map((_, j) => (j === anchorIdx ? toDollars(fund.cents[anchorIdx]) : null)),
-						...fund.projectedCents.map(toDollars)
-					],
-					borderColor: color,
-					borderDash: [6, 5],
-					pointRadius: 0,
-					tension: 0,
-					fill: false,
-					stack: 'projected',
-					hideInLegend: true
-				}
-			];
+			return {
+				label: fund.name,
+				data: fund.cents.map(toDollars),
+				borderColor: color,
+				backgroundColor: color,
+				fill: false,
+				tension: 0.25,
+				// Marker shape as well as colour, so the lines stay separable without
+				// relying on hue alone.
+				pointStyle: pointStyle(i),
+				pointRadius: 2
+			};
 		})
 	});
-	const fundGrowthOptions = $derived({
+	const savingsOverviewOptions = $derived({
 		...noAspect,
 		interaction: indexHover,
 		plugins: { legend: seriesLegend(tokens), tooltip: { callbacks: { label: currencyLabel } } },
-		scales: { y: { stacked: true, ticks: currencyTicks } }
+		scales: { y: { ticks: currencyTicks } }
 	});
 
 	// --- 3. Expenses by category (bar, filterable period) ---------------------
@@ -197,6 +175,11 @@
 		},
 		scales: {
 			y: {
+				// A rate is a share of income: anchoring the axis to the full 0–100%
+				// range keeps month-to-month comparisons honest, since an auto-fitted
+				// axis exaggerates small swings.
+				min: 0,
+				max: 100,
 				ticks: {
 					callback: (value: string | number) => (typeof value === 'number' ? `${value}%` : value)
 				}
@@ -310,7 +293,6 @@
 				type="bar"
 				data={cashFlowData}
 				options={cashFlowOptions}
-				format={centsFromDollars}
 				height="360px"
 			/>
 		{:else}
@@ -327,7 +309,6 @@
 					type="line"
 					data={savingsRateData}
 					options={savingsRateOptions}
-					format={(v) => (v === null ? '—' : `${v.toFixed(1)}%`)}
 				/>
 			{:else}
 				<p class="empty-state">Needs a month with net income to compute a rate.</p>
@@ -350,7 +331,7 @@
 					type="bar"
 					data={categoryData}
 					options={categoryOptions}
-					format={centsFromDollars}
+					captionHidden
 				/>
 			{:else}
 				<p class="empty-state">No expenses recorded for this period.</p>
@@ -360,12 +341,11 @@
 		<div class="card chart-card chart-card--wide">
 			{#if data.fundSeries.length > 0}
 				<ChartFigure
-					title="Savings fund growth"
-					description="Cumulative balance of each savings fund, with a dashed 12-month projection at the recent contribution rate."
+					title="Savings overview"
+					description="Balance of each savings fund at the start of every month."
 					type="line"
-					data={fundGrowthData}
-					options={fundGrowthOptions}
-					format={centsFromDollars}
+					data={savingsOverviewData}
+					options={savingsOverviewOptions}
 					height="380px"
 				/>
 			{:else}
@@ -381,7 +361,6 @@
 					type="bar"
 					data={flowData}
 					options={flowOptions}
-					format={centsFromDollars}
 				/>
 			{:else}
 				<p class="empty-state">No paychecks recorded yet.</p>

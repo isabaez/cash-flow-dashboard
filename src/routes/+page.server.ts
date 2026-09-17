@@ -11,13 +11,8 @@ import {
 	paychecks
 } from '$lib/server/db/schema';
 import { and, eq, like, notExists, sql, sum } from 'drizzle-orm';
-import { monthLabel, monthRange, nextMonth } from '$lib/date';
+import { monthLabel, monthRange } from '$lib/date';
 import type { PageServerLoad } from './$types';
-
-/** Trailing months used to estimate each fund's monthly contribution rate. */
-const TREND_WINDOW = 6;
-/** How far the fund-growth projection extends, in months (matches the net-worth page). */
-const PROJECTION_MONTHS = 12;
 
 /**
  * Fund bands (chart 2) — funds have no color column, so each is assigned a slot in
@@ -189,10 +184,12 @@ export const load: PageServerLoad = async ({ url }) => {
 		)
 	};
 
-	// Chart 2: cumulative balance per savings fund over the shared axis — the
-	// net-worth running-total algorithm, applied per fund. Non-savings funds (e.g.
-	// the shared expenses pool) are excluded; this chart is about long-term growth.
-	// Colors by index among savings funds so each keeps a stable color.
+	// Chart 2: each savings fund's balance as it stood at the START of every month
+	// on the shared axis. The running total is read before the month's movements are
+	// applied, so a point answers "what was in this fund on the 1st?". Non-savings
+	// funds (e.g. the shared expenses pool) are excluded; this chart is about
+	// long-term growth. Colors by index among savings funds so each keeps a stable
+	// color.
 	const contribByFundMonth = new Map(fundContribRows.map((r) => [`${r.fundId}:${r.month}`, r.cents]));
 	const depositByFundMonth = new Map(fundDepositRows.map((r) => [`${r.fundId}:${r.month}`, r.cents]));
 	const withdrawalByFundMonth = new Map(
@@ -203,43 +200,18 @@ export const load: PageServerLoad = async ({ url }) => {
 		.map((fund, i) => {
 			let running = fund.initialCents;
 			const cents = months.map((m) => {
+				const startOfMonth = running;
 				running +=
 					(contribByFundMonth.get(`${fund.id}:${m}`) ?? 0) +
 					(depositByFundMonth.get(`${fund.id}:${m}`) ?? 0) -
 					(withdrawalByFundMonth.get(`${fund.id}:${m}`) ?? 0);
-				return running;
+				return startOfMonth;
 			});
 
-			// Dashed 12-month projection per fund, mirroring the net-worth page: extend
-			// the last balance forward at the average monthly change over the trailing
-			// window (or, with only one month of history, that month's net movement).
-			const last = cents.at(-1) ?? 0;
-			const trendMonths = Math.min(TREND_WINDOW, cents.length - 1);
-			const avgMonthlyCents =
-				trendMonths > 0
-					? Math.round((last - cents[cents.length - 1 - trendMonths]) / trendMonths)
-					: last - fund.initialCents;
-			const projectedCents: number[] = [];
-			let projected = last;
-			for (let p = 0; p < PROJECTION_MONTHS; p++) {
-				projected += avgMonthlyCents;
-				projectedCents.push(projected);
-			}
-
-			return { name: fund.name, colorSlot: i % PALETTE_SLOTS, cents, projectedCents };
+			return { name: fund.name, colorSlot: i % PALETTE_SLOTS, cents };
 		})
 		// Drop funds that never move and start at zero — pure noise.
 		.filter((f) => f.cents.some((c) => c !== 0));
-
-	// Future month keys shared by every fund's projection (empty when there's no history).
-	const projectionMonths: string[] = [];
-	if (months.length > 0) {
-		let m = months[months.length - 1];
-		for (let p = 0; p < PROJECTION_MONTHS; p++) {
-			m = nextMonth(m);
-			projectionMonths.push(m);
-		}
-	}
 
 	// Chart 3: category breakdown for the selected period, largest first, with an
 	// Uncategorized bar appended when there's uncategorized spend.
@@ -360,7 +332,6 @@ export const load: PageServerLoad = async ({ url }) => {
 		savingsRate,
 		flow,
 		fundSeries,
-		projectionMonths,
 		categoryBreakdown,
 		categoryPeriodLabel,
 		categoryFilter: { month: catMonth },
