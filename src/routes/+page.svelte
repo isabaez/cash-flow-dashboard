@@ -29,7 +29,19 @@
 	const softFill = (color: string) => `color-mix(in oklab, ${color} 18%, transparent)`;
 
 	const labels = $derived(data.months.map(monthLabel));
-	const periodLabel = $derived(data.kpis.periodMonth ? monthLabel(data.kpis.periodMonth) : '');
+
+	// Header line: the tiles cover everything on record, so say which span that is.
+	// A single month of history reads as one label rather than "Jan 2025 – Jan 2025".
+	const rangeLabel = $derived.by(() => {
+		const { rangeStart, rangeEnd } = data.kpis;
+		if (!rangeStart || !rangeEnd) return '';
+		return rangeStart === rangeEnd
+			? monthLabel(rangeStart)
+			: `${monthLabel(rangeStart)} – ${monthLabel(rangeEnd)}`;
+	});
+
+	/** Shared by the three average tiles — their delta is the same comparison. */
+	const averageHint = 'this month vs average';
 
 	// Shared option fragments (Chart.js configs are plain objects).
 	const noAspect = { responsive: true, maintainAspectRatio: false } as const;
@@ -235,9 +247,9 @@
 <div class="page-header">
 	<div>
 		<h1>Dashboard</h1>
-		{#if data.hasData && periodLabel}
+		{#if data.hasData && rangeLabel}
 			<p class="page-header__meta">
-				Figures for {periodLabel} · as of {formatDate(data.asOf)}
+				All time · {rangeLabel} · as of {formatDate(data.asOf)}
 			</p>
 		{/if}
 	</div>
@@ -251,7 +263,7 @@
 		</p>
 	</div>
 {:else}
-	<section class="kpis" aria-label="Headline figures for {periodLabel}">
+	<section class="kpis" aria-label="All-time headline figures">
 		<StatTile
 			label="Net worth"
 			value={formatCents(data.kpis.netWorth.cents)}
@@ -260,40 +272,32 @@
 				? signedCents(data.kpis.netWorth.deltaCents)
 				: ''}
 			hint="vs last month"
-			trend={data.kpis.netWorth.trend}
 		/>
 		<StatTile
-			label="Net cash flow"
+			label="Avg net cash flow"
 			value={formatCents(data.kpis.netCashFlow.cents)}
 			delta={data.kpis.netCashFlow.deltaCents}
 			deltaLabel={data.kpis.netCashFlow.deltaCents !== null
 				? signedCents(data.kpis.netCashFlow.deltaCents)
 				: ''}
-			hint="vs last month"
-			trend={data.kpis.netCashFlow.trend}
+			hint={averageHint}
 		/>
 		<StatTile
-			label="Savings rate"
-			value={data.kpis.savingsRate.percent !== null
-				? `${data.kpis.savingsRate.percent.toFixed(1)}%`
-				: '—'}
-			delta={data.kpis.savingsRate.deltaPoints}
-			deltaLabel={data.kpis.savingsRate.deltaPoints !== null
-				? `${Math.abs(data.kpis.savingsRate.deltaPoints).toFixed(1)} pts`
-				: ''}
-			hint="vs 6-mo average"
-			trend={data.kpis.savingsRate.trend}
-		/>
-		<StatTile
-			label="Total spend"
+			label="Avg monthly spend"
 			value={formatCents(data.kpis.spend.cents)}
 			delta={data.kpis.spend.deltaCents}
-			deltaLabel={data.kpis.spend.deltaCents !== null
-				? signedCents(data.kpis.spend.deltaCents)
-				: ''}
+			deltaLabel={data.kpis.spend.deltaCents !== null ? signedCents(data.kpis.spend.deltaCents) : ''}
 			polarity="down-is-good"
-			hint="vs last month"
-			trend={data.kpis.spend.trend}
+			hint={averageHint}
+		/>
+		<StatTile
+			label="Avg monthly savings"
+			value={formatCents(data.kpis.savings.cents)}
+			delta={data.kpis.savings.deltaCents}
+			deltaLabel={data.kpis.savings.deltaCents !== null
+				? signedCents(data.kpis.savings.deltaCents)
+				: ''}
+			hint={averageHint}
 		/>
 	</section>
 

@@ -290,10 +290,9 @@ export const load: PageServerLoad = async ({ url }) => {
 	// "Verdict first": the dashboard leads with how things are going, not with five
 	// charts of equal weight. Everything below is derived from series already
 	// computed above — no additional queries.
-
-	/** How many trailing points each sparkline shows. */
-	const SPARK_POINTS = 12;
-	const spark = (series: (number | null)[]) => series.slice(-SPARK_POINTS);
+	//
+	// The tiles are an ALL-TIME overview: one stock (net worth) and three monthly
+	// averages. Averages are per *month with data*, not per month on the axis.
 
 	// Net worth across EVERY fund (not just savings funds, unlike chart 2) — this is
 	// the same running-total rule the Net Worth page applies.
@@ -310,51 +309,72 @@ export const load: PageServerLoad = async ({ url }) => {
 
 	const netCashFlowCents = months.map((m, i) => netIncomeCents[i] - expensesCents[i]);
 
-	// Report on the current month where it exists; otherwise the latest month with
-	// data (a database whose newest row is in the past should not show all zeroes).
-	const currentIndex = months.indexOf(currentMonth);
-	const idx = currentIndex >= 0 ? currentIndex : months.length - 1;
-	const prev = idx - 1;
-	const has = idx >= 0;
-	const hasPrev = prev >= 0;
+	// Monthly money into savings: paycheck allocations plus manual deposits, less
+	// withdrawals, across savings funds only — the same set chart 2 bands. Summed
+	// from the per-fund maps already built above rather than re-queried.
+	const savingsFunds = fundRows.filter((fund) => fund.isSavings);
+	const savingsCents = months.map((m) =>
+		savingsFunds.reduce(
+			(total, fund) =>
+				total +
+				(contribByFundMonth.get(`${fund.id}:${m}`) ?? 0) +
+				(depositByFundMonth.get(`${fund.id}:${m}`) ?? 0) -
+				(withdrawalByFundMonth.get(`${fund.id}:${m}`) ?? 0),
+			0
+		)
+	);
 
-	/** Mean of the up-to-`window` months before `idx`, ignoring gaps. */
-	const trailingMean = (series: (number | null)[], window = 6): number | null => {
-		const slice = series.slice(Math.max(0, idx - window), idx).filter((v): v is number => v !== null);
-		return slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : null;
+	// Which months count toward an average. Two exclusions:
+	//  1. The in-progress current month — its totals are partial and would drag
+	//     every average down. This mirrors the `partial` rule in
+	//     lib/server/insights/digest.ts, so Dashboard and Insights agree.
+	//  2. Months `monthRange` padded in to keep the axis contiguous. They carry no
+	//     rows at all, so counting their zeroes would understate the averages; the
+	//     denominator is "months with data", not months.length.
+	const completeIdx = months.flatMap((m, i) =>
+		m !== currentMonth && monthKeys.has(m) ? [i] : []
+	);
+
+	/** Mean over the complete months, rounded to whole cents. null with no samples. */
+	const meanCents = (series: number[]): number | null =>
+		completeIdx.length
+			? Math.round(completeIdx.reduce((total, i) => total + series[i], 0) / completeIdx.length)
+			: null;
+
+	// The most recent complete month is what each average tile compares against.
+	const latestIdx = completeIdx.at(-1) ?? null;
+
+	/**
+	 * One average tile: the all-time mean, plus how the latest complete month sits
+	 * against it. The delta is null when there's nothing to average or the latest
+	 * complete month *is* the only sample (comparing it to itself says nothing).
+	 */
+	const average = (series: number[]) => {
+		const avgCents = meanCents(series);
+		return {
+			cents: avgCents ?? 0,
+			deltaCents:
+				avgCents !== null && latestIdx !== null && completeIdx.length > 1
+					? series[latestIdx] - avgCents
+					: null
+		};
 	};
 
-	const savingsRateNow = has ? savingsRate[idx] : null;
-	const savingsRateBaseline = trailingMean(savingsRate);
+	const lastIdx = months.length - 1;
 
 	const kpis = {
-		/** The month every "this month" figure below describes. */
-		periodMonth: has ? months[idx] : null,
+		/** First and last month on the axis, for the "All time · … – …" header line. */
+		rangeStart: months.length ? months[0] : null,
+		rangeEnd: months.length ? months[lastIdx] : null,
+		// A stock, not a flow: the latest balance on the axis (the partial month
+		// included — money already in a fund is not "partial") against last month's.
 		netWorth: {
-			cents: has ? netWorthSeries[idx] : 0,
-			deltaCents: hasPrev ? netWorthSeries[idx] - netWorthSeries[prev] : null,
-			trend: spark(netWorthSeries)
+			cents: months.length ? netWorthSeries[lastIdx] : 0,
+			deltaCents: lastIdx > 0 ? netWorthSeries[lastIdx] - netWorthSeries[lastIdx - 1] : null
 		},
-		netCashFlow: {
-			cents: has ? netCashFlowCents[idx] : 0,
-			deltaCents: hasPrev ? netCashFlowCents[idx] - netCashFlowCents[prev] : null,
-			trend: spark(netCashFlowCents)
-		},
-		savingsRate: {
-			percent: savingsRateNow,
-			// Compared against the trailing average rather than last month alone: a
-			// single lumpy month otherwise reads as a trend that is not there.
-			deltaPoints:
-				savingsRateNow !== null && savingsRateBaseline !== null
-					? savingsRateNow - savingsRateBaseline
-					: null,
-			trend: spark(savingsRate)
-		},
-		spend: {
-			cents: has ? expensesCents[idx] : 0,
-			deltaCents: hasPrev ? expensesCents[idx] - expensesCents[prev] : null,
-			trend: spark(expensesCents)
-		}
+		netCashFlow: average(netCashFlowCents),
+		spend: average(expensesCents),
+		savings: average(savingsCents)
 	};
 
 	return {
