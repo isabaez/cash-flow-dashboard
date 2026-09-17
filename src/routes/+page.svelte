@@ -335,11 +335,7 @@
 				{#if data.availableMonths.length > 0}
 					<CategoryPeriodFilter
 						months={data.availableMonths}
-						years={data.availableYears}
 						month={data.categoryFilter.month}
-						year={data.categoryFilter.year}
-						from={data.categoryFilter.from}
-						to={data.categoryFilter.to}
 					/>
 				{/if}
 			</div>

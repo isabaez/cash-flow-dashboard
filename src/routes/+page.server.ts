@@ -10,7 +10,7 @@ import {
 	paycheckDeductions,
 	paychecks
 } from '$lib/server/db/schema';
-import { and, eq, gte, like, lte, notExists, sql, sum } from 'drizzle-orm';
+import { and, eq, like, notExists, sql, sum } from 'drizzle-orm';
 import { monthLabel, monthRange, nextMonth } from '$lib/date';
 import type { PageServerLoad } from './$types';
 
@@ -39,42 +39,19 @@ export const load: PageServerLoad = async ({ url }) => {
 
 	const currentMonth = new Date().toISOString().slice(0, 7);
 
-	// Category chart (chart 3) date filter — scopes ONLY that chart. Modes are
-	// mutually exclusive; invalid params fall back to the default (current month).
+	// Category chart (chart 3) date filter — scopes ONLY that chart. The period
+	// dropdown offers exactly two states, so those are the only two parsed here:
+	// a valid `?month=YYYY-MM`, or no param at all. Anything else is all time.
 	const monthRaw = url.searchParams.get('month');
-	const yearRaw = url.searchParams.get('year');
-	const fromRaw = url.searchParams.get('from');
-	const toRaw = url.searchParams.get('to');
-	const isMonth = (v: string | null): v is string => !!v && /^\d{4}-\d{2}$/.test(v);
-	const catMonth = isMonth(monthRaw) ? monthRaw : null;
-	const catYear = !catMonth && yearRaw && /^\d{4}$/.test(yearRaw) ? yearRaw : null;
-	// Range applies only when both bounds are valid months and ordered.
-	const rangeActive =
-		!catMonth && !catYear && isMonth(fromRaw) && isMonth(toRaw) && fromRaw <= toRaw;
-	const catFrom = rangeActive ? fromRaw : null;
-	const catTo = rangeActive ? toRaw : null;
+	const catMonth = monthRaw && /^\d{4}-\d{2}$/.test(monthRaw) ? monthRaw : null;
 
-	// Shared WHERE for both category queries. With no filter applied it's undefined,
+	// Shared WHERE for both category queries. With no month applied it's undefined,
 	// so the chart shows all expenses across all time (drizzle ignores an undefined
 	// `where`, and `and(undefined, …)` drops the term).
-	const categoryDateWhere = catMonth
-		? like(expenses.date, `${catMonth}-%`)
-		: catYear
-			? like(expenses.date, `${catYear}-%`)
-			: rangeActive
-				? and(gte(expMonth, catFrom!), lte(expMonth, catTo!))
-				: undefined;
+	const categoryDateWhere = catMonth ? like(expenses.date, `${catMonth}-%`) : undefined;
 
 	// Human-readable label for the card title.
-	const categoryPeriodLabel = catMonth
-		? monthLabel(catMonth)
-		: catYear
-			? catYear
-			: rangeActive
-				? catFrom === catTo
-					? monthLabel(catFrom!)
-					: `${monthLabel(catFrom!)} – ${monthLabel(catTo!)}`
-				: 'All time';
+	const categoryPeriodLabel = catMonth ? monthLabel(catMonth) : 'All time';
 
 	const [
 		grossRows,
@@ -281,10 +258,9 @@ export const load: PageServerLoad = async ({ url }) => {
 		});
 	}
 
-	// Filter dropdown options — months/years that actually have expense data, newest
-	// first (expenseRows is already grouped by expense month).
+	// Filter dropdown options — months that actually have expense data, newest first
+	// (expenseRows is already grouped by expense month).
 	const availableMonths = expenseRows.map((r) => r.month).sort((a, b) => b.localeCompare(a));
-	const availableYears = [...new Set(availableMonths.map((m) => m.slice(0, 4)))];
 
 	// --- Headline figures -----------------------------------------------------
 	// "Verdict first": the dashboard leads with how things are going, not with five
@@ -367,9 +343,8 @@ export const load: PageServerLoad = async ({ url }) => {
 		projectionMonths,
 		categoryBreakdown,
 		categoryPeriodLabel,
-		categoryFilter: { month: catMonth, year: catYear, from: catFrom, to: catTo },
+		categoryFilter: { month: catMonth },
 		availableMonths,
-		availableYears,
 		kpis,
 		/** Figures are point-in-time; say when they were computed. */
 		asOf: new Date().toISOString().slice(0, 10),
