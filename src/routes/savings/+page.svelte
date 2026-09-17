@@ -7,7 +7,7 @@
 	import { theme } from '$lib/theme.svelte';
 	import type { PageProps } from './$types';
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 
 	const tokens = $derived.by(() => {
 		void theme.resolved;
@@ -86,26 +86,25 @@
 			? data.history[data.history.length - 1].cents - data.history[data.history.length - 2].cents
 			: null
 	);
-
-	function share(balanceCents: number): string {
-		if (data.netWorthCents <= 0) return '—';
-		return `${((balanceCents / data.netWorthCents) * 100).toFixed(1)}%`;
-	}
 </script>
 
 <svelte:head>
-	<title>Net Worth · Baez Financial Dashboard</title>
+	<title>Savings &amp; Net Worth · Baez Financial Dashboard</title>
 </svelte:head>
 
 <div class="page-header">
 	<div>
-		<h1>Net Worth</h1>
+		<h1>Savings &amp; Net Worth</h1>
 		<p class="explainer">
 			Fund balances at cost basis — initial value plus contributions and deposits minus
 			withdrawals. Market gains and losses are not tracked.
 		</p>
 	</div>
 </div>
+
+{#if form?.error}
+	<p class="form-error" role="alert">{form.error}</p>
+{/if}
 
 <section class="stats" aria-label="Net worth summary">
 	<StatTile
@@ -126,6 +125,30 @@
 	/>
 </section>
 
+<!-- Fund card grid — owned by the fund-cards workstream. -->
+<section class="funds" aria-label="Funds">
+	{#if data.funds.length === 0}
+		<div class="card">
+			<div class="empty-state">
+				<p class="empty-state__title">No funds yet.</p>
+				<p class="empty-state__hint">
+					Add a fund, then funnel paychecks into it from the Income page.
+				</p>
+			</div>
+		</div>
+	{:else}
+		<div class="fund-grid">
+			{#each data.funds as fund (fund.id)}
+				<div class="card">
+					<h2 class="fund-placeholder__name">{fund.name}</h2>
+					<p class="money">{formatCents(fund.balanceCents)}</p>
+				</div>
+			{/each}
+		</div>
+	{/if}
+</section>
+
+<!-- The net worth trend sits last on the page, below the funds it aggregates. -->
 <div class="card chart-card">
 	{#if data.history.length === 0}
 		<p class="empty-state">
@@ -144,49 +167,9 @@
 	{/if}
 </div>
 
-<div class="card">
-	<h2 class="breakdown-title">By fund</h2>
-	{#if data.perFund.length === 0}
-		<p class="empty-state">No funds yet.</p>
-	{:else}
-		<div class="table-scroll">
-			<table class="table">
-				<caption class="visually-hidden">
-					Every fund's balance broken into its initial value, contributions, deposits and
-					withdrawals, with each fund's share of total net worth.
-				</caption>
-				<thead>
-					<tr class="table__head">
-						<th scope="col">Fund</th>
-						<th scope="col" class="table__cell--number">Initial</th>
-						<th scope="col" class="table__cell--number">Contributed</th>
-						<th scope="col" class="table__cell--number">Deposited</th>
-						<th scope="col" class="table__cell--number">Withdrawn</th>
-						<th scope="col" class="table__cell--number">Balance</th>
-						<th scope="col" class="table__cell--number">% of net worth</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each data.perFund as fund (fund.id)}
-						<tr>
-							<th scope="row" class="table__cell--name">{fund.name}</th>
-							<td class="table__cell--number">{formatCents(fund.initialCents)}</td>
-							<td class="table__cell--number">{formatCents(fund.contributedCents)}</td>
-							<td class="table__cell--number">{formatCents(fund.depositedCents)}</td>
-							<td class="table__cell--number">{formatCents(fund.withdrawnCents)}</td>
-							<td class="table__cell--number table__cell--emphasis">
-								{formatCents(fund.balanceCents)}
-							</td>
-							<td class="table__cell--number">{share(fund.balanceCents)}</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
-	{/if}
-</div>
-
 <style lang="scss">
+	@use 'breakpoints' as *;
+
 	.explainer {
 		margin: var(--space-1) 0 0;
 		color: var(--text-secondary);
@@ -201,20 +184,28 @@
 		margin-bottom: var(--space-4);
 	}
 
-	.chart-card {
+	.funds {
 		margin-bottom: var(--space-4);
 	}
 
-	.breakdown-title {
+	// `minmax(0, 1fr)` rather than `1fr`: grid items default to `min-width: auto`,
+	// so a card holding a long fund name refuses to shrink and overflows its track.
+	.fund-grid {
+		display: grid;
+		gap: var(--space-4);
+		grid-template-columns: 1fr;
+
+		@media (min-width: $breakpoint-md) {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		@media (min-width: $breakpoint-lg) {
+			grid-template-columns: repeat(4, minmax(0, 1fr));
+		}
+	}
+
+	.fund-placeholder__name {
+		margin: 0 0 var(--space-2);
 		font-size: var(--text-md);
-	}
-
-	.table__cell--name {
-		font-weight: 500;
-	}
-
-	.table__cell--emphasis {
-		color: var(--text-primary);
-		font-weight: 600;
 	}
 </style>
