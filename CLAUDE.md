@@ -15,6 +15,13 @@ the Docker build serves **3000** (`npm run docker:up`).
   ones.
 - PRs target `develop`. `develop` merges to `main` for release.
 
+Setting up a worktree: symlink `node_modules` and copy `data/` in, or `npm run check`
+and `npm run dev` will not run there. Run `npx svelte-kit sync` once in a fresh worktree
+before `npm run check`. `.gitignore` only lists `node_modules/` (the directory form), so
+the symlink is excluded repo-wide via `.git/info/exclude` instead — do not commit it.
+`preview_start` launches against the primary working directory, not the worktree, so run
+`npx vite dev --port <free port>` from inside the worktree when previewing a branch.
+
 ## Design feedback loop
 
 Design feedback arrives as **vibe-annotations** on the running app at `localhost:3000`
@@ -37,6 +44,12 @@ Before any UI change is called done:
 npm run check          # svelte-check
 npm run check:contrast # WCAG 2.2 ratios in both themes — fails the build
 ```
+
+Two traps when verifying in the browser: `export const` of anything other than SvelteKit's
+own names (`load`, `actions`, …) in a `+page.server.ts` is a 500 that `npm run check` does
+not catch — only the running server does. And reading a computed `opacity` immediately
+after `.focus()` returns the mid-transition value, so let a transition settle before
+concluding a reveal is broken.
 
 Verify in the browser rather than asserting: drive the preview, check the console, test
 keyboard reachability, and screenshot both themes.
