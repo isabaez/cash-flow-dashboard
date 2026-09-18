@@ -23,9 +23,6 @@
 		withdrawnCents: number;
 		mtdContributedCents: number;
 		balanceCents: number;
-		contributionCount: number;
-		depositCount: number;
-		withdrawalCount: number;
 	};
 
 	let {
@@ -44,10 +41,6 @@
 		ondeposit: (fund: Fund) => void;
 		onwithdraw: (fund: Fund) => void;
 	} = $props();
-
-	const movementCount = $derived(
-		fund.contributionCount + fund.depositCount + fund.withdrawalCount
-	);
 </script>
 
 <article class="fund-card">
@@ -153,26 +146,20 @@
 			<dd class="money">{formatCents(fund.initialCents)}</dd>
 		</div>
 		<div class="fund-card__total">
-			<dt>Contributed</dt>
+			<dt>Total Contributions</dt>
 			<dd class="money">{formatCents(fund.contributedCents)}</dd>
 		</div>
 		<div class="fund-card__total">
-			<dt>Deposited</dt>
+			<dt>Total Deposited</dt>
 			<dd class="money">{formatCents(fund.depositedCents)}</dd>
 		</div>
 		<div class="fund-card__total">
-			<dt>Withdrawn</dt>
+			<dt>Total Withdrawals</dt>
 			<dd class="money">{formatCents(fund.withdrawnCents)}</dd>
 		</div>
 	</dl>
 
-	<a class="fund-card__link" href="/savings/{fund.id}">
-		View all transactions
-		<span class="fund-card__count">
-			{movementCount}
-			{movementCount === 1 ? 'movement' : 'movements'}
-		</span>
-	</a>
+	<a class="fund-card__link" href="/savings/{fund.id}">View all transactions</a>
 </article>
 
 <style lang="scss">
@@ -307,22 +294,13 @@
 
 		&__link {
 			display: flex;
-			flex-wrap: wrap;
 			align-items: center;
-			justify-content: space-between;
-			gap: var(--space-2);
 			min-block-size: var(--target-min);
 			margin-top: auto;
 			padding-top: var(--space-3);
 			border-top: 1px solid var(--border-subtle);
 			font-size: var(--text-sm);
 			font-weight: 500;
-		}
-
-		&__count {
-			color: var(--text-tertiary);
-			font-weight: 400;
-			font-variant-numeric: tabular-nums;
 		}
 	}
 
@@ -331,7 +309,6 @@
 	.fund-card__actions {
 		display: flex;
 		flex: none;
-		margin-inline-start: auto;
 		gap: var(--space-1);
 		opacity: 0;
 		transition: opacity var(--dur-fast) var(--ease-out);
