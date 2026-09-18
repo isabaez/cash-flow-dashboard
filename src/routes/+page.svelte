@@ -7,7 +7,7 @@
 	// ChartFigure, which names it for assistive tech.
 	import ChartFigure from '$lib/components/ChartFigure.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
-	import CategoryPeriodFilter from '$lib/components/CategoryPeriodFilter.svelte';
+	import PeriodFilter from '$lib/components/PeriodFilter.svelte';
 	import { formatCents } from '$lib/money';
 	import { formatDate, monthLabel } from '$lib/date';
 	import { readChartTokens, seriesColor, seriesLegend, pointStyle } from '$lib/chart';
@@ -44,6 +44,15 @@
 	// The delta on an average tile is the month in progress, so the hint says so:
 	// a month-to-date total sitting below a full-month average is expected, not news.
 	const averageHint = $derived(`${monthLabel(data.kpis.currentMonth)} so far vs average`);
+
+	/**
+	 * Periods for the category chart picker: "All time" first (empty value, which
+	 * clears the param), then every month that has expense data.
+	 */
+	const categoryPeriodOptions = $derived([
+		{ value: '', label: 'All time' },
+		...data.availableMonths.map((m) => ({ value: m, label: monthLabel(m) }))
+	]);
 
 	// Shared option fragments (Chart.js configs are plain objects).
 	const noAspect = { responsive: true, maintainAspectRatio: false } as const;
@@ -336,9 +345,11 @@
 		<div class="card chart-card">
 			<div class="chart-card__filter">
 				{#if data.availableMonths.length > 0}
-					<CategoryPeriodFilter
-						months={data.availableMonths}
-						month={data.categoryFilter.month}
+					<PeriodFilter
+						options={categoryPeriodOptions}
+						value={data.categoryFilter.month}
+						paramName="month"
+						label="Period for expenses by category"
 					/>
 				{/if}
 			</div>

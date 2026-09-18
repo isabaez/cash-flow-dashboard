@@ -1,9 +1,13 @@
 <script lang="ts">
 	/**
-	 * Scoped period picker for the dashboard's "Expenses by category" chart. One
-	 * button opens a listbox of periods; choosing one writes `?month=YYYY-MM` (or
-	 * clears it for "All time") and navigates, so the server load re-scopes ONLY
-	 * that chart. Mirrors the goto idiom used by FilterBar.svelte.
+	 * URL-param-driven period picker. One button opens a listbox of periods;
+	 * choosing one writes `?<paramName>=<value>` (or clears the param when the
+	 * value is the empty string) and navigates, so the server load re-scopes.
+	 * Mirrors the goto idiom used by FilterBar.svelte.
+	 *
+	 * Callers own the option list and its labels, so the same control serves the
+	 * dashboard's "Expenses by category" month picker and the per-fund ledger's
+	 * relative-period picker.
 	 *
 	 * Accessibility notes, because this replaces a native <select> and therefore has
 	 * to re-supply everything the platform used to give us for free:
@@ -17,35 +21,34 @@
 	 *    listbox itself while `activeIndex` moves a virtual cursor between options.
 	 *    That keeps a single focus stop, so the arrow keys never escape the panel
 	 *    and Escape always has somewhere to return focus to (the trigger).
-	 *  • The card this sits in has no visible heading, so the trigger carries a
+	 *  • These cards have no visible heading, so the trigger carries a
 	 *    visually-hidden label — it is the only accessible name for the control.
 	 */
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { monthLabel } from '$lib/date';
 
 	let {
-		months,
-		month
+		options,
+		value,
+		paramName,
+		label
 	}: {
-		/** Distinct YYYY-MM values that have expense data, newest first */
-		months: string[];
-		/** Currently applied month, or null for all time */
-		month: string | null;
+		/**
+		 * Selectable periods, in display order. An option whose `value` is the empty
+		 * string clears the param instead of setting it — that is how a caller
+		 * expresses its default ("All time" on the dashboard).
+		 */
+		options: { value: string; label: string }[];
+		/** Currently applied value; null is treated as the empty string. */
+		value: string | null;
+		/** Search param this control owns. */
+		paramName: string;
+		/** Accessible name for the control, e.g. "Period for expenses by category". */
+		label: string;
 	} = $props();
 
-	/**
-	 * "All time" first, then every month with data. The panel is sized to show about
-	 * six rows and scrolls past that (max-height below) rather than truncating the
-	 * list — an older month must stay reachable, not just recent ones.
-	 */
-	const options = $derived([
-		{ value: '', label: 'All time' },
-		...months.map((m) => ({ value: m, label: monthLabel(m) }))
-	]);
-
-	const selectedIndex = $derived(Math.max(0, options.findIndex((o) => o.value === (month ?? ''))));
-	const triggerLabel = $derived(options[selectedIndex]?.label ?? 'All time');
+	const selectedIndex = $derived(Math.max(0, options.findIndex((o) => o.value === (value ?? ''))));
+	const triggerLabel = $derived(options[selectedIndex]?.label ?? options[0]?.label ?? '');
 
 	let open = $state(false);
 	/** Virtual cursor inside the listbox — the option aria-activedescendant points at. */
@@ -92,7 +95,7 @@
 		// keepFocus preserves whatever is focused at navigation time, and the
 		// listbox is about to be unmounted, so the trigger has to own focus first.
 		closePanel();
-		apply({ month: option.value });
+		apply({ [paramName]: option.value });
 	}
 
 	function moveTo(index: number) {
@@ -163,7 +166,7 @@
 		onclick={() => (open ? closePanel() : openPanel())}
 		onkeydown={handleTriggerKeydown}
 	>
-		<span class="visually-hidden">Period for expenses by category</span>
+		<span class="visually-hidden">{label}</span>
 		<span class="period-filter__value">{triggerLabel}</span>
 		<span class="period-filter__caret" aria-hidden="true">▾</span>
 	</button>
@@ -175,7 +178,7 @@
 			class="period-filter__panel"
 			role="listbox"
 			tabindex="-1"
-			aria-label="Period for expenses by category"
+			aria-label={label}
 			aria-activedescendant={optionId(activeIndex)}
 			onkeydown={handleListboxKeydown}
 		>
