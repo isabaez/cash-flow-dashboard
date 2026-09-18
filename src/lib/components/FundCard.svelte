@@ -309,7 +309,6 @@
 	.fund-card__actions {
 		display: flex;
 		flex: none;
-		margin-inline-start: auto;
 		gap: var(--space-1);
 		opacity: 0;
 		transition: opacity var(--dur-fast) var(--ease-out);
