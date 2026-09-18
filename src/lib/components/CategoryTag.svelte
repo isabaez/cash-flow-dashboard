@@ -6,10 +6,16 @@
 		name,
 		color,
 		onclick = null,
-		onremove = null
+		onremove = null,
+		count = null,
+		size = 'sm'
 	}: {
 		name: string;
 		color: string;
+		/** When set, a muted count follows the name (e.g. how many expenses carry it). */
+		count?: number | null;
+		/** `md` is for pages where the tags are the content, not an annotation on a row. */
+		size?: 'sm' | 'md';
 		/** When set, the whole tag is a button (e.g. click to filter). */
 		onclick?: (() => void) | null;
 		/** When set, an inline × button is shown (e.g. remove an applied filter). */
@@ -33,8 +39,17 @@
 		{name}
 	</button>
 {:else}
-	<span class="category-tag" style="--tag-color: {color}; --tag-ink: {ink}">
+	<span
+		class="category-tag"
+		class:category-tag--md={size === 'md'}
+		style="--tag-color: {color}; --tag-ink: {ink}"
+	>
 		{name}
+		{#if count !== null}
+			<span class="category-tag__count">
+				{count}<span class="visually-hidden"> {count === 1 ? 'expense' : 'expenses'}</span>
+			</span>
+		{/if}
 		{#if onremove}
 			<button
 				class="category-tag__remove"
@@ -63,6 +78,22 @@
 		color: var(--tag-ink);
 		background: color-mix(in oklab, var(--tag-color) 14%, transparent);
 		border: 1px solid color-mix(in oklab, var(--tag-color) 32%, transparent);
+
+		&--md {
+			padding: var(--space-1) var(--space-3);
+			min-height: var(--target-min);
+			font-size: var(--text-sm);
+		}
+
+		// Set apart by a rule and a lighter weight, not by dimming: the ink is only
+		// clamped to a readable contrast at full strength, so any opacity or grey
+		// here could fail on the tint.
+		&__count {
+			padding-inline-start: var(--space-2);
+			border-inline-start: 1px solid color-mix(in oklab, var(--tag-color) 40%, transparent);
+			font-weight: 400;
+			font-variant-numeric: tabular-nums;
+		}
 
 		&--clickable {
 			font-family: inherit;
