@@ -32,8 +32,8 @@ export const load: PageServerLoad = async () => {
 			.from(fundWithdrawals)
 			.groupBy(wdMonth),
 		db.query.funds.findMany({
-			with: { allocations: { with: { paycheck: true } }, deposits: true, withdrawals: true },
-			orderBy: (f, { asc }) => [asc(f.name)]
+			// Card order is set after shaping, once balances are known.
+			with: { allocations: { with: { paycheck: true } }, deposits: true, withdrawals: true }
 		})
 	]);
 
@@ -65,12 +65,18 @@ export const load: PageServerLoad = async () => {
 			depositedCents,
 			withdrawnCents,
 			mtdContributedCents,
-			balanceCents: fund.initialCents + contributedCents + depositedCents - withdrawnCents,
-			contributionCount: fund.allocations.length,
-			depositCount: fund.deposits.length,
-			withdrawalCount: fund.withdrawals.length
+			balanceCents: fund.initialCents + contributedCents + depositedCents - withdrawnCents
 		};
 	});
+
+	// Largest balance first — but this is a savings view, so every non-savings fund
+	// sorts after every savings fund regardless of size. Ties stay A→Z.
+	shaped.sort(
+		(a, b) =>
+			Number(b.isSavings) - Number(a.isSavings) ||
+			b.balanceCents - a.balanceCents ||
+			a.name.localeCompare(b.name)
+	);
 
 	// --- Net worth series ---------------------------------------------------
 	// Net movement per month across all funds.
