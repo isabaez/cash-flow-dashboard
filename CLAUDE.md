@@ -5,22 +5,27 @@ the Docker build serves **3000** (`npm run docker:up`).
 
 ## Branching
 
-- **Always branch off `develop`.** Never commit directly to `develop` or `main`.
+- **Every feature starts as a branch off `develop`.** Never commit directly to `develop` or
+  `main`.
 - Branch names use the format **`feature/[descriptive feature name]`** — lowercase,
   hyphenated, describing the feature rather than the ticket. e.g.
   `feature/savings-fund-cards`.
-- **Never merge a feature branch yourself** — not into `develop`, not into another
-  feature branch. Push the branch and open a PR with `gh pr create`; Uriel reviews and
-  merges. Leave local `develop` matching `origin/develop`.
-- Work that splits into independent parts runs as **parallel workstreams in separate git
-  worktrees** under `.claude/worktrees/`, one branch and one PR each. State the dependency
-  order and the file collisions up front. When a workstream depends on another that is
-  not merged yet, branch it off that workstream's branch and **stack its PR** on it
-  (`--base feature/<foundation>`), so each PR's diff shows only its own work. Say in the
-  PR body which PR it stacks on and the merge order.
+- **A full feature is one branch off `develop` and one PR into `develop`.** Push it and
+  open the PR with `gh pr create`; Uriel reviews and merges it. Never merge anything into
+  `develop` or `main` yourself, and keep local `develop` matching `origin/develop`.
+- **Branches off a feature branch get no PR.** When a feature splits into workstreams,
+  branch each one off the feature branch, not off `develop`, and merge it back into the
+  feature branch yourself (`git merge --no-ff`) once its checks pass. Uriel reviews the
+  whole feature in its one PR, not every sub-branch. Sub-branches use the same
+  `feature/[descriptive name]` format.
+- Workstreams run in parallel in **separate git worktrees** under `.claude/worktrees/`.
+  State the dependency order and the file collisions up front, and merge the foundation
+  workstream into the feature branch before starting the ones that depend on it.
+- The feature PR body lists every workstream that was merged into it, and why the work
+  was split that way.
 - Parts that all edit the same file are one workstream, not several — parallel branches
   there only manufacture conflicts.
-- PRs target `develop` unless stacked. `develop` merges to `main` for release.
+- `develop` merges to `main` for release.
 
 Setting up a worktree: symlink `node_modules` and copy `data/` in, or `npm run check`
 and `npm run dev` will not run there. Run `npx svelte-kit sync` once in a fresh worktree
