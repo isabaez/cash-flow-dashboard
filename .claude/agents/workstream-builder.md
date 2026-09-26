@@ -58,7 +58,7 @@ Open issues: blockers, assumptions, follow-ups, collisions with other workstream
 ## This project
 
 <!-- Filled in by /init-project (Step 3). Worktree setup steps (or a pointer to the CLAUDE.md section that has them) and which of them the caller must do (anything touching env files or secrets); files and directories never to link or copy; things that must never run twice or inside a worktree; gates safe to run in a worktree and from which directory. Facts only; no secret values; nothing sensitive if the repo is public. -->
-- Setup (CLAUDE.md › Branching): the caller symlinks `node_modules` from the main checkout and copies `data/` in;
+- Setup (CLAUDE.md › Branches in this project): the caller symlinks `node_modules` from the main checkout and copies `data/` in;
   run `npx svelte-kit sync` once before `npm run check`. The symlink is excluded in `.git/info/exclude`: never commit
   it.
 - Gates, from the worktree root: `npm run check` and `npm run check:contrast`.

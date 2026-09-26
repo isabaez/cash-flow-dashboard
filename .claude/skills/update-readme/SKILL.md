@@ -95,7 +95,7 @@ propose adding it.
   section yet.
 - Sections tied to code: `## Setup` ↔ `start.sh`, `docker-compose.yml`, `Dockerfile`, `docker-entrypoint.sh` and the
   package.json scripts; `## Schema` ↔ `src/lib/server/db/schema.ts`; `## Pages` ↔ `src/routes/`; `## AI insights` ↔
-  `src/lib/server/insights/` and `src/routes/insights/+server.ts`; `## Conventions` ↔ CLAUDE.md › Conventions and
+  `src/lib/server/insights/` and `src/routes/insights/+server.ts`; `## Conventions` ↔ CLAUDE.md › Conventions in this project and
   `src/lib/styles/`.
 - Numbers to keep current: the nine default funds (`DEFAULT_FUNDS` in `src/lib/server/db/index.ts`), the dashboard's
   chart count, the 800-row cap on raw analysis (`MAX_ROWS` in `src/lib/server/insights/raw.ts`), ports 3000 (Docker,
