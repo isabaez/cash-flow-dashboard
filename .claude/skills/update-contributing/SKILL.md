@@ -70,11 +70,10 @@ propose adding it.
 ## This project
 
 <!-- Filled in by /init-project. The QA branch's name and anything to restart after merging into it; where deploy steps are documented; the pre-PR checks and which of them need a running service. Facts only; nothing sensitive in a public repo. -->
-- The QA branch is `beta`. Nothing deploys remotely: the app is self-hosted. `./start.sh` (`npm run docker:up`)
-  builds the image from the working tree (`COPY . .`, not a bind mount), so the container on port 3000 runs whatever
-  branch was checked out when it was built. Testing `beta` means checking it out and running `./start.sh` again; the
-  data lives in the `cashflow-data` volume and survives the rebuild.
-- Run and deploy steps are documented in README.md › Setup.
-- Pre-PR checks: `npm run check` (svelte-check) and `npm run check:contrast` (`scripts/check-contrast.mjs`, WCAG 2.2
-  contrast ratios in both themes). Neither needs a running service; checking a change in the browser needs the dev
-  server (`npm run dev`, port 5173).
+- The QA branch is `beta`. It is tested on the dev server (`npm run dev` in the main checkout, port 5173, seed data
+  in `data/`), never with `./start.sh`, which rebuilds the real app on 3000 from the working tree and pushes the
+  branch's schema onto the real data. Nothing needs restarting after a QA merge.
+- Releasing: after `[ production deploy ]` merges, the dev checks out `main` in the main checkout and runs
+  `./start.sh` (`npm run docker:up`). The steps live in CONTRIBUTING.md › Releasing this project and README.md › Setup.
+- Pre-PR checks: `npm run check`, `npm run check:contrast` and `npm run build`; none needs a running service.
+  Checking a change in the browser needs the dev server (`npm run dev`, port 5173).
