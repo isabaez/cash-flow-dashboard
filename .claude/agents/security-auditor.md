@@ -96,8 +96,8 @@ weakened; medium = hardening gap with a plausible path; low = defence in depth.
 - Egress: Insights (`src/routes/insights/+server.ts`, `src/lib/server/insights/`) sends recorded income and expenses
   to Ollama at `OLLAMA_URL` (default `http://127.0.0.1:11434`; in Compose the `ollama` sidecar, port unpublished).
   Any other outbound request is new egress.
-- Secrets: none. An ignored `.env` next to `docker-compose.yml` may override `OLLAMA_MODEL`, `ORIGIN` and
-  `OLLAMA_URL`.
+- Secrets: none. An ignored `.env` next to `docker-compose.yml` may override `OLLAMA_MODEL` and `ORIGIN`;
+  Compose hard-codes `OLLAMA_URL`.
 - Schema changes reach the real database through `drizzle-kit push --force` at container start
   (`docker-entrypoint.sh`); data-loss statements run without a prompt.
 - `npm audit` uses the network: list the packages and leave the command for the dev.

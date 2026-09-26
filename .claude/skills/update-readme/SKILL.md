@@ -89,14 +89,15 @@ propose adding it.
 ## This project
 
 <!-- Filled in by /init-project. README size and whether audits fan out; which existing sections map to the four required parts; sections tied to code (e.g. a setup section that must match service files); numbers or counts that must stay current. Facts only; nothing sensitive in a public repo. -->
-- README.md is about 8.5 KB, under the ~15 KB threshold, so audits run inline without Explore agents.
+- README.md is about 13 KB, under the ~15 KB threshold, so audits run inline without Explore agents.
 - Name and introduction: `# Cash Flow Dashboard` and the paragraph under it. Running it locally: `## Setup`
-  (`### Docker (one command)`, `### Local development`). There is no directory layout or Working with Claude Code
-  section yet.
-- Sections tied to code: `## Setup` ↔ `start.sh`, `docker-compose.yml`, `Dockerfile`, `docker-entrypoint.sh` and the
-  package.json scripts; `## Schema` ↔ `src/lib/server/db/schema.ts`; `## Pages` ↔ `src/routes/`; `## AI insights` ↔
-  `src/lib/server/insights/` and `src/routes/insights/+server.ts`; `## Conventions` ↔ CLAUDE.md › Conventions in this project and
-  `src/lib/styles/`.
+  (prerequisites, `### Docker (one command)`, `### Local development`). Directory layout: `## Layout`. Claude Code:
+  `## Working with Claude Code`, before `## License` (MIT, `LICENSE`).
+- Sections tied to code: `## Setup` and `## Troubleshooting` ↔ `start.sh`, `docker-compose.yml` (`OLLAMA_URL` is
+  hard-coded there; `.env` only overrides `OLLAMA_MODEL` and `ORIGIN`), `Dockerfile`, `docker-entrypoint.sh` and the
+  package.json scripts; `## Schema` ↔ `src/lib/server/db/schema.ts`; `## Pages` and `## Roadmap` ↔ `src/routes/`;
+  `## AI insights` ↔ `src/lib/server/insights/` and `src/routes/insights/+server.ts`; `## Conventions` ↔ CLAUDE.md ›
+  Conventions in this project and `src/lib/styles/`.
 - Numbers to keep current: the nine default funds (`DEFAULT_FUNDS` in `src/lib/server/db/index.ts`), the dashboard's
-  chart count, the 800-row cap on raw analysis (`MAX_ROWS` in `src/lib/server/insights/raw.ts`), ports 3000 (Docker,
-  `npm start`) and 5173 (`npm run dev`), and the default model `llama3.1`.
+  four tiles and five charts, the 12-month projection and 6-month trend window (`src/routes/savings/+page.server.ts`),
+  the 800-row cap on raw analysis (`MAX_ROWS`), ports 3000 and 5173, Node 22, and the default model `llama3.1`.
