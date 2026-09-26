@@ -133,8 +133,9 @@ fact that "This project" below lacks (for example that the first PRs were import
 - `main`'s root commit, "Initial commit" (2026-08-04), is the project's first build (pages, schema, styles), not an
   empty scaffold, so it is the first release.
 - Until 2026-09-03, work was committed straight to `develop` without pull requests; it first reached `main` through
-  #1 on 2026-09-03. #3 (the redesign) was merged straight into `main`, not through `develop`.
-- Deploy PRs #1 and #5 are titled `[ production deploy ]`; #6 and #7 are `develop` → `main` deploys under feature
-  titles.
+  #1 on 2026-09-03. #3 (the redesign) was merged straight into `main`, not through `develop`. Deploy PRs #1 and #5
+  are titled `[ production deploy ]`; #6 and #7 are `develop` → `main` deploys under feature titles.
 - On 2026-09-17, two workstream merges and two direct commits landed on `develop` without pull requests, before the
-  one-PR-per-feature rule (#11).
+  one-PR-per-feature rule (#11). #9 and #10 merged into #8's branch, not `develop`, so their changes are logged under
+  #8. #4's own change (a static title in `src/app.html`) was lost in a merge and never shipped, so no bullet cites it.
+- Deliberately without a bullet: the README-only commits 65b0dce and b60cc73; `gaps --all` lists exactly these.
