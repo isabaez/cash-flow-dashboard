@@ -9,3 +9,7 @@ data/
 .env
 .DS_Store
 vite.config.ts.timestamp-*
+
+# Claude Code
+.claude/settings.local.json
+.claude/worktrees/
