@@ -40,25 +40,25 @@ function oklchToRgb(L, C, hDeg) {
 		-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
 		-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s
 	];
-	const enc = (v) => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
-	return lin.map((v) => Math.min(1, Math.max(0, enc(v))));
+	const enc = (channel) => (channel <= 0.0031308 ? 12.92 * channel : 1.055 * channel ** (1 / 2.4) - 0.055);
+	return lin.map((channel) => Math.min(1, Math.max(0, enc(channel))));
 }
 
-const linearize = (v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+const linearize = (channel) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
 
 /** WCAG relative luminance of a gamma-encoded sRGB triple. */
-function luminance([r, g, b]) {
-	const [R, G, B] = [r, g, b].map(linearize);
-	return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+function luminance([red, green, blue]) {
+	const [linearRed, linearGreen, linearBlue] = [red, green, blue].map(linearize);
+	return 0.2126 * linearRed + 0.7152 * linearGreen + 0.0722 * linearBlue;
 }
 
 function ratio(fg, bg) {
-	const [hi, lo] = [luminance(fg), luminance(bg)].sort((a, b) => b - a);
+	const [hi, lo] = [luminance(fg), luminance(bg)].sort((left, right) => right - left);
 	return (hi + 0.05) / (lo + 0.05);
 }
 
 /** Euclidean distance in OKLab — perceptual difference between two colours. */
-const deltaEOk = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+const deltaEOk = (left, right) => Math.hypot(left[0] - right[0], left[1] - right[1], left[2] - right[2]);
 
 /** Floor for "these two categorical colours are clearly different". ~0.10 is the
  *  just-noticeable threshold. Tableau 10 — a professionally designed reference
@@ -68,7 +68,7 @@ const deltaEOk = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 const DE_MIN = 0.10;
 
 /** Source-over composite of a translucent colour onto an opaque one. */
-const over = (fg, alpha, bg) => fg.map((c, i) => c * alpha + bg[i] * (1 - alpha));
+const over = (fg, alpha, bg) => fg.map((channel, index) => channel * alpha + bg[index] * (1 - alpha));
 
 // --- token parsing ----------------------------------------------------------
 
@@ -79,14 +79,14 @@ function parseTheme(name) {
 	if (!block) throw new Error(`could not find @mixin ${name} in _tokens.scss`);
 	const tokens = {};
 	for (const line of block[1].split('\n')) {
-		const m = line.match(/^\s*(--[\w-]+):\s*oklch\(([^)]+)\)\s*;/);
-		if (!m) continue;
-		const [, key, args] = m;
-		const [coords, alphaRaw] = args.split('/').map((s) => s.trim());
-		const [L, C, H] = coords.split(/\s+/).map(Number);
-		const h = ((H ?? 0) * Math.PI) / 180;
+		const match = line.match(/^\s*(--[\w-]+):\s*oklch\(([^)]+)\)\s*;/);
+		if (!match) continue;
+		const [, key, args] = match;
+		const [coords, alphaRaw] = args.split('/').map((part) => part.trim());
+		const [L, C, hDeg] = coords.split(/\s+/).map(Number);
+		const h = ((hDeg ?? 0) * Math.PI) / 180;
 		tokens[key] = {
-			rgb: oklchToRgb(L, C, H ?? 0),
+			rgb: oklchToRgb(L, C, hDeg ?? 0),
 			lab: [L, C * Math.cos(h), C * Math.sin(h)],
 			alpha: alphaRaw ? Number(alphaRaw) : 1
 		};
@@ -96,9 +96,9 @@ function parseTheme(name) {
 
 /** Resolve a token to an opaque triple, compositing over `bg` when translucent. */
 function solid(theme, key, bg) {
-	const t = theme[key];
-	if (!t) throw new Error(`unknown token ${key}`);
-	return t.alpha === 1 ? t.rgb : over(t.rgb, t.alpha, bg);
+	const token = theme[key];
+	if (!token) throw new Error(`unknown token ${key}`);
+	return token.alpha === 1 ? token.rgb : over(token.rgb, token.alpha, bg);
 }
 
 // --- the gates --------------------------------------------------------------
@@ -108,10 +108,10 @@ let checks = 0;
 
 function gate(themeName, label, fg, bg, min) {
 	checks++;
-	const r = ratio(fg, bg);
-	const pass = r >= min;
-	if (!pass) failures.push({ themeName, label, r, min });
-	return { r, pass };
+	const measured = ratio(fg, bg);
+	const pass = measured >= min;
+	if (!pass) failures.push({ themeName, label, measured, min });
+	return { measured, pass };
 }
 
 function auditTheme(themeName, theme) {
@@ -119,29 +119,29 @@ function auditTheme(themeName, theme) {
 	const surfaces = ['--surface-0', '--surface-1', '--surface-2', '--surface-3'];
 
 	const record = (label, fg, bg, min) => {
-		const { r, pass } = gate(themeName, label, fg, bg, min);
-		rows.push({ label, r, min, pass });
+		const { measured, pass } = gate(themeName, label, fg, bg, min);
+		rows.push({ label, measured, min, pass });
 	};
 
 	// Text on every surface it can land on.
-	for (const s of surfaces) {
-		const bg = theme[s].rgb;
-		for (const t of ['--text-primary', '--text-secondary', '--text-tertiary']) {
-			record(`${t} on ${s}`, theme[t].rgb, bg, 4.5);
+	for (const surface of surfaces) {
+		const bg = theme[surface].rgb;
+		for (const text of ['--text-primary', '--text-secondary', '--text-tertiary']) {
+			record(`${text} on ${surface}`, theme[text].rgb, bg, 4.5);
 		}
 	}
 
 	// Control boundaries and focus — non-text, 3:1.
-	for (const s of ['--surface-0', '--surface-1', '--surface-2']) {
-		record(`--border-strong on ${s}`, theme['--border-strong'].rgb, theme[s].rgb, 3);
-		record(`--focus-ring on ${s}`, theme['--focus-ring'].rgb, theme[s].rgb, 3);
+	for (const surface of ['--surface-0', '--surface-1', '--surface-2']) {
+		record(`--border-strong on ${surface}`, theme['--border-strong'].rgb, theme[surface].rgb, 3);
+		record(`--focus-ring on ${surface}`, theme['--focus-ring'].rgb, theme[surface].rgb, 3);
 	}
 
 	// Semantic colours used as text (deltas, amounts, links, errors).
-	for (const s of ['--surface-1', '--surface-2']) {
-		const bg = theme[s].rgb;
-		for (const t of ['--accent', '--pos', '--neg']) {
-			record(`${t} as text on ${s}`, theme[t].rgb, bg, 4.5);
+	for (const surface of ['--surface-1', '--surface-2']) {
+		const bg = theme[surface].rgb;
+		for (const ink of ['--accent', '--pos', '--neg']) {
+			record(`${ink} as text on ${surface}`, theme[ink].rgb, bg, 4.5);
 		}
 	}
 
@@ -159,19 +159,19 @@ function auditTheme(themeName, theme) {
 	record('--accent-fg on --accent', theme['--accent-fg'].rgb, theme['--accent'].rgb, 4.5);
 
 	// Chart series must be perceivable against the card they are drawn on.
-	const series = Array.from({ length: 10 }, (_, i) => `--chart-${i + 1}`);
-	for (const c of series) record(`${c} on --surface-1`, theme[c].rgb, theme['--surface-1'].rgb, 3);
+	const series = Array.from({ length: 10 }, (_, index) => `--chart-${index + 1}`);
+	for (const chartToken of series) record(`${chartToken} on --surface-1`, theme[chartToken].rgb, theme['--surface-1'].rgb, 3);
 
 	// …and tellable apart from each other. Perceptual distance, not luminance.
-	for (let i = 0; i < series.length; i++) {
-		for (let j = i + 1; j < series.length; j++) {
+	for (let index = 0; index < series.length; index++) {
+		for (let otherIndex = index + 1; otherIndex < series.length; otherIndex++) {
 			checks++;
-			const d = deltaEOk(theme[series[i]].lab, theme[series[j]].lab);
-			const pass = d >= DE_MIN;
+			const distance = deltaEOk(theme[series[index]].lab, theme[series[otherIndex]].lab);
+			const pass = distance >= DE_MIN;
 			if (!pass) {
-				failures.push({ themeName, label: `${series[i]} vs ${series[j]}`, r: d, min: DE_MIN });
+				failures.push({ themeName, label: `${series[index]} vs ${series[otherIndex]}`, measured: distance, min: DE_MIN });
 			}
-			rows.push({ label: `dE ${series[i]} vs ${series[j]}`, r: d, min: DE_MIN, pass });
+			rows.push({ label: `dE ${series[index]} vs ${series[otherIndex]}`, measured: distance, min: DE_MIN, pass });
 		}
 	}
 
@@ -183,11 +183,11 @@ const themes = { dark: parseTheme('theme-dark'), light: parseTheme('theme-light'
 
 for (const [name, theme] of Object.entries(themes)) {
 	const rows = auditTheme(name, theme);
-	const bad = rows.filter((r) => !r.pass);
+	const bad = rows.filter((row) => !row.pass);
 	console.log(`\n${name.toUpperCase()}  ${rows.length - bad.length}/${rows.length} pass`);
-	for (const r of verbose ? rows : bad) {
+	for (const row of verbose ? rows : bad) {
 		console.log(
-			`  ${r.pass ? 'ok  ' : 'FAIL'} ${r.r.toFixed(2).padStart(6)} (min ${r.min})  ${r.label}`
+			`  ${row.pass ? 'ok  ' : 'FAIL'} ${row.measured.toFixed(2).padStart(6)} (min ${row.min})  ${row.label}`
 		);
 	}
 }
