@@ -41,19 +41,19 @@ export const load: PageServerLoad = async () => {
 
 	// --- Per-fund cards -----------------------------------------------------
 	const shaped = fundRows.map((fund) => {
-		const contributedCents = fund.allocations.reduce((acc, a) => acc + a.resolvedCents, 0);
-		const depositedCents = fund.deposits.reduce((acc, d) => acc + d.amountCents, 0);
-		const withdrawnCents = fund.withdrawals.reduce((acc, w) => acc + w.amountCents, 0);
+		const contributedCents = fund.allocations.reduce((acc, allocation) => acc + allocation.resolvedCents, 0);
+		const depositedCents = fund.deposits.reduce((acc, deposit) => acc + deposit.amountCents, 0);
+		const withdrawnCents = fund.withdrawals.reduce((acc, withdrawal) => acc + withdrawal.amountCents, 0);
 
 		// "Contributed month-to-date" is money added this calendar month — paycheck
 		// allocations plus manual deposits. Withdrawals are not netted out.
 		const mtdContributedCents =
 			fund.allocations
-				.filter((a) => a.paycheck.date.startsWith(currentMonth))
-				.reduce((acc, a) => acc + a.resolvedCents, 0) +
+				.filter((allocation) => allocation.paycheck.date.startsWith(currentMonth))
+				.reduce((acc, allocation) => acc + allocation.resolvedCents, 0) +
 			fund.deposits
-				.filter((d) => d.date.startsWith(currentMonth))
-				.reduce((acc, d) => acc + d.amountCents, 0);
+				.filter((deposit) => deposit.date.startsWith(currentMonth))
+				.reduce((acc, deposit) => acc + deposit.amountCents, 0);
 
 		return {
 			id: fund.id,
@@ -72,30 +72,30 @@ export const load: PageServerLoad = async () => {
 	// Largest balance first — but this is a savings view, so every non-savings fund
 	// sorts after every savings fund regardless of size. Ties stay A→Z.
 	shaped.sort(
-		(a, b) =>
-			Number(b.isSavings) - Number(a.isSavings) ||
-			b.balanceCents - a.balanceCents ||
-			a.name.localeCompare(b.name)
+		(left, right) =>
+			Number(right.isSavings) - Number(left.isSavings) ||
+			right.balanceCents - left.balanceCents ||
+			left.name.localeCompare(right.name)
 	);
 
 	// --- Net worth series ---------------------------------------------------
 	// Net movement per month across all funds.
 	const deltaByMonth = new Map<string, number>();
-	for (const r of contribRows) deltaByMonth.set(r.month, (deltaByMonth.get(r.month) ?? 0) + r.cents);
-	for (const r of depRows) deltaByMonth.set(r.month, (deltaByMonth.get(r.month) ?? 0) + r.cents);
-	for (const r of wdRows) deltaByMonth.set(r.month, (deltaByMonth.get(r.month) ?? 0) - r.cents);
+	for (const row of contribRows) deltaByMonth.set(row.month, (deltaByMonth.get(row.month) ?? 0) + row.cents);
+	for (const row of depRows) deltaByMonth.set(row.month, (deltaByMonth.get(row.month) ?? 0) + row.cents);
+	for (const row of wdRows) deltaByMonth.set(row.month, (deltaByMonth.get(row.month) ?? 0) - row.cents);
 
 	// Initial fund values predate all tracked movements — the series baseline.
-	const initialTotal = fundRows.reduce((s, f) => s + f.initialCents, 0);
+	const initialTotal = fundRows.reduce((total, fund) => total + fund.initialCents, 0);
 
 	// Cumulative monthly series from the earliest movement to the current month.
 	const history: { month: string; cents: number }[] = [];
 	if (deltaByMonth.size > 0) {
 		const start = [...deltaByMonth.keys()].sort()[0];
 		let running = initialTotal;
-		for (let m = start; m <= currentMonth; m = nextMonth(m)) {
-			running += deltaByMonth.get(m) ?? 0;
-			history.push({ month: m, cents: running });
+		for (let month = start; month <= currentMonth; month = nextMonth(month)) {
+			running += deltaByMonth.get(month) ?? 0;
+			history.push({ month, cents: running });
 		}
 	} else if (initialTotal !== 0) {
 		history.push({ month: currentMonth, cents: initialTotal });
@@ -120,12 +120,12 @@ export const load: PageServerLoad = async () => {
 	// Dashed projection, anchored at the last actual point.
 	const projection: { month: string; cents: number }[] = [];
 	if (last) {
-		let m = last.month;
+		let month = last.month;
 		let cents = last.cents;
-		for (let i = 0; i < PROJECTION_MONTHS; i++) {
-			m = nextMonth(m);
+		for (let index = 0; index < PROJECTION_MONTHS; index++) {
+			month = nextMonth(month);
 			cents += avgMonthlyCents;
-			projection.push({ month: m, cents });
+			projection.push({ month, cents });
 		}
 	}
 

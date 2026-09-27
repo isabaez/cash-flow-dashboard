@@ -44,39 +44,39 @@ export type LedgerSource = {
 export function buildLedger(fund: LedgerSource): LedgerEntry[] {
 	const ledger: LedgerEntry[] = [
 		...fund.allocations.map(
-			(a): LedgerEntry => ({
+			(allocation): LedgerEntry => ({
 				kind: 'contribution',
-				date: a.paycheck.date,
-				label: a.paycheck.title,
-				amountCents: a.resolvedCents,
+				date: allocation.paycheck.date,
+				label: allocation.paycheck.title,
+				amountCents: allocation.resolvedCents,
 				entryId: null,
 				entryNotes: null,
 				expenseLinked: false
 			})
 		),
 		...fund.deposits.map(
-			(d): LedgerEntry => ({
+			(deposit): LedgerEntry => ({
 				kind: 'deposit',
-				date: d.date,
-				label: d.notes || 'Deposit',
-				amountCents: d.amountCents,
-				entryId: d.id,
-				entryNotes: d.notes,
+				date: deposit.date,
+				label: deposit.notes || 'Deposit',
+				amountCents: deposit.amountCents,
+				entryId: deposit.id,
+				entryNotes: deposit.notes,
 				expenseLinked: false
 			})
 		),
 		...fund.withdrawals.map(
-			(w): LedgerEntry => ({
+			(withdrawal): LedgerEntry => ({
 				kind: 'withdrawal',
-				date: w.date,
-				label: w.notes || 'Withdrawal',
-				amountCents: w.amountCents,
-				entryId: w.id,
-				entryNotes: w.notes,
-				expenseLinked: w.expenseId !== null
+				date: withdrawal.date,
+				label: withdrawal.notes || 'Withdrawal',
+				amountCents: withdrawal.amountCents,
+				entryId: withdrawal.id,
+				entryNotes: withdrawal.notes,
+				expenseLinked: withdrawal.expenseId !== null
 			})
 		)
-	].sort((a, b) => b.date.localeCompare(a.date));
+	].sort((left, right) => right.date.localeCompare(left.date));
 
 	// The starting balance predates all tracked movements — always last.
 	if (fund.initialCents !== 0) {

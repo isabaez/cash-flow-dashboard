@@ -50,18 +50,18 @@
 	});
 
 	const labels = $derived([
-		...data.history.map((p) => monthLabel(p.month)),
-		...data.projection.map((p) => monthLabel(p.month))
+		...data.history.map((point) => monthLabel(point.month)),
+		...data.projection.map((point) => monthLabel(point.month))
 	]);
 
 	// The projection line starts at the last actual point so the two lines connect.
 	const historySeries = $derived([
-		...data.history.map((p) => p.cents / 100),
+		...data.history.map((point) => point.cents / 100),
 		...data.projection.map(() => null)
 	]);
 	const projectionSeries = $derived([
-		...data.history.map((p, i) => (i === data.history.length - 1 ? p.cents / 100 : null)),
-		...data.projection.map((p) => p.cents / 100)
+		...data.history.map((point, index) => (index === data.history.length - 1 ? point.cents / 100 : null)),
+		...data.projection.map((point) => point.cents / 100)
 	]);
 
 	const chartData = $derived({
@@ -182,10 +182,10 @@
 				<FundCard
 					{fund}
 					currentMonth={data.currentMonth}
-					onedit={(f) => openModal('edit', f)}
-					ondelete={(f) => openModal('delete', f)}
-					ondeposit={(f) => openModal('deposit', f)}
-					onwithdraw={(f) => openModal('withdraw', f)}
+					onedit={(selectedFund) => openModal('edit', selectedFund)}
+					ondelete={(selectedFund) => openModal('delete', selectedFund)}
+					ondeposit={(selectedFund) => openModal('deposit', selectedFund)}
+					onwithdraw={(selectedFund) => openModal('withdraw', selectedFund)}
 				/>
 			{/each}
 		</div>
@@ -263,7 +263,7 @@
 
 <Modal
 	title={modal ? modalTitles[modal.kind] : ''}
-	bind:open={() => modal !== null, (v) => { if (!v) modal = null; }}
+	bind:open={() => modal !== null, (open) => { if (!open) modal = null; }}
 >
 	<!-- Keyed on the open modal: after a save the form resets and its DOM inputs
 	     empty, so reopening the same fund must remount the form to show fresh
