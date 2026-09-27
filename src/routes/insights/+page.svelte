@@ -170,7 +170,7 @@
 	.insights-intro {
 		margin: 0 0 var(--space-5);
 		color: var(--text-secondary);
-		font-size: var(--text-sm);
+		font-size: var(--text-base);
 		max-width: 70ch;
 	}
 
@@ -189,14 +189,14 @@
 		&__blurb {
 			margin: 0 0 var(--space-4);
 			color: var(--text-secondary);
-			font-size: var(--text-sm);
+			font-size: var(--text-base);
 			max-width: 70ch;
 		}
 
 		&__status {
 			margin: var(--space-5) 0 0;
 			color: var(--text-secondary);
-			font-size: var(--text-sm);
+			font-size: var(--text-base);
 		}
 
 		&__error {
@@ -207,7 +207,7 @@
 			border-radius: var(--radius-md);
 			background: var(--neg-soft);
 			color: var(--text-primary);
-			font-size: var(--text-sm);
+			font-size: var(--text-base);
 
 			p {
 				margin: 0;

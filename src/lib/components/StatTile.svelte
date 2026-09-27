@@ -112,8 +112,10 @@
 			}
 		}
 
+		// Set here, not inherited: outside __delta the hint would take the body size.
 		&__hint {
 			color: var(--text-tertiary);
+			font-size: var(--text-sm);
 			font-weight: 400;
 			white-space: normal;
 		}

@@ -377,17 +377,6 @@
 		gap: var(--space-2);
 	}
 
-	.form-error {
-		margin: 0 0 var(--space-4);
-		padding: var(--space-3) var(--space-4);
-		border: 1px solid color-mix(in oklab, var(--neg) 40%, transparent);
-		border-left: 3px solid var(--neg);
-		border-radius: var(--radius-md);
-		background: var(--neg-soft);
-		color: var(--text-primary);
-		font-size: var(--text-sm);
-	}
-
 	.movement-form {
 		display: flex;
 		align-items: flex-end;

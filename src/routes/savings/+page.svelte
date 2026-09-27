@@ -341,7 +341,7 @@
 	.explainer {
 		margin: var(--space-1) 0 0;
 		color: var(--text-secondary);
-		font-size: var(--text-sm);
+		font-size: var(--text-base);
 		max-width: 72ch;
 	}
 
@@ -402,18 +402,5 @@
 			justify-content: flex-end;
 			gap: var(--space-2);
 		}
-	}
-
-	// Server-side validation message. The left rule and the alert role carry it as
-	// well as the colour does.
-	.form-error {
-		margin: 0 0 var(--space-4);
-		padding: var(--space-3) var(--space-4);
-		border: 1px solid color-mix(in oklab, var(--neg) 40%, transparent);
-		border-left: 3px solid var(--neg);
-		border-radius: var(--radius-md);
-		background: var(--neg-soft);
-		color: var(--text-primary);
-		font-size: var(--text-sm);
 	}
 </style>

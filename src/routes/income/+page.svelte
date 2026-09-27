@@ -214,7 +214,7 @@
 	{/if}
 	{#key showDuplicateModal}
 	{#if duplicating}
-		<p class="hint">
+		<p class="duplicate-hint">
 			Copies “{duplicating.title}” ({formatCents(duplicating.grossCents)} gross) with
 			{duplicating.deductions.length}
 			{duplicating.deductions.length === 1 ? 'deduction' : 'deductions'} and
@@ -740,7 +740,7 @@
 												<button class="button" type="submit">Add allocation</button>
 											</form>
 
-											<p class="hint">
+											<p class="detail__remaining">
 												{formatCents(netCents(paycheck) - allocatedCents(paycheck))} of net remains
 												unallocated.
 											</p>
@@ -801,14 +801,19 @@
 		}
 
 		&__title {
-			font-size: var(--text-base);
+			font-size: var(--text-md);
 			margin-bottom: var(--space-2);
 		}
 
 		&__empty {
 			color: var(--text-secondary);
-			font-size: var(--text-sm);
+			font-size: var(--text-base);
 			margin: 0 0 var(--space-4);
+		}
+
+		&__remaining {
+			margin: var(--space-2) 0 0;
+			color: var(--text-secondary);
 		}
 
 		&__list {
@@ -842,20 +847,16 @@
 		}
 	}
 
+	// Helper notes under a form. Sentences that are the content itself use
+	// .duplicate-hint and .detail__remaining at the body size.
 	.hint {
 		margin: var(--space-2) 0 0;
 		color: var(--text-secondary);
 		font-size: var(--text-sm);
 	}
 
-	.form-error {
-		margin: 0 0 var(--space-4);
-		padding: var(--space-3) var(--space-4);
-		border: 1px solid color-mix(in oklab, var(--neg) 40%, transparent);
-		border-left: 3px solid var(--neg);
-		border-radius: var(--radius-md);
-		background: var(--neg-soft);
-		color: var(--text-primary);
-		font-size: var(--text-sm);
+	.duplicate-hint {
+		margin: var(--space-2) 0 0;
+		color: var(--text-secondary);
 	}
 </style>

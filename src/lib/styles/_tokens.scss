@@ -147,11 +147,14 @@
 		'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
 	--font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
 
-	// Modular scale, ~1.2 ratio.
+	// Type scale by role (after Material 3 and Carbon: body 16, label 14, small label 12).
+	// Body text — sentences, values, table cells, messages, options — is --text-base or
+	// larger (CLAUDE.md: 16px or more). --text-sm is for labels and controls (field
+	// labels, hints, buttons, nav, chips, counts); --text-xs for column headers and badges.
 	--text-xs: 0.75rem;
-	--text-sm: 0.8125rem;
-	--text-base: 0.9375rem;
-	--text-md: 1.0625rem;
+	--text-sm: 0.875rem;
+	--text-base: 1rem;
+	--text-md: 1.125rem; // small headings, a step above body
 	--text-lg: 1.25rem;
 	--text-xl: 1.5rem;
 	--text-2xl: 1.875rem;

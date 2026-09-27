@@ -830,7 +830,7 @@
 
 		&__value {
 			margin: 0;
-			font-size: var(--text-sm);
+			font-size: var(--text-base);
 		}
 
 		&__muted {
@@ -855,18 +855,7 @@
 	.duplicate-hint {
 		margin: 0 0 var(--space-4);
 		color: var(--text-secondary);
-		font-size: var(--text-sm);
-	}
-
-	.form-error {
-		margin: 0 0 var(--space-4);
-		padding: var(--space-3) var(--space-4);
-		border: 1px solid color-mix(in oklab, var(--neg) 40%, transparent);
-		border-left: 3px solid var(--neg);
-		border-radius: var(--radius-md);
-		background: var(--neg-soft);
-		color: var(--text-primary);
-		font-size: var(--text-sm);
+		font-size: var(--text-base);
 	}
 
 	.page-header__actions {
@@ -876,7 +865,7 @@
 
 	.import-hint {
 		margin: 0 0 var(--space-4);
-		font-size: var(--text-sm);
+		font-size: var(--text-base);
 		color: var(--text-secondary);
 
 		code {
@@ -892,7 +881,7 @@
 
 	.import-status {
 		margin: 0 0 var(--space-4);
-		font-size: var(--text-sm);
+		font-size: var(--text-base);
 		color: var(--text-secondary);
 	}
 
@@ -929,7 +918,7 @@
 		&__list {
 			margin: 0;
 			padding-left: var(--space-5);
-			font-size: var(--text-sm);
+			font-size: var(--text-base);
 			color: var(--text-secondary);
 
 			li {

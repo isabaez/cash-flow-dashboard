@@ -198,7 +198,7 @@
 
 		&__name {
 			margin: 0;
-			font-size: var(--text-base);
+			font-size: var(--text-md);
 			font-weight: 600;
 			line-height: 1.3;
 			// Long names wrap rather than overflow. `break-word`, not `anywhere`:
@@ -223,8 +223,8 @@
 			flex-basis: 100%;
 			margin: 0;
 			color: var(--text-tertiary);
-			font-size: var(--text-xs);
-			line-height: 1.4;
+			font-size: var(--text-base);
+			line-height: 1.5;
 			overflow-wrap: break-word;
 		}
 
@@ -286,9 +286,11 @@
 				overflow-wrap: break-word;
 			}
 
+			// The amounts are body text; the row labels stay at the label size.
 			dd {
 				margin: 0;
 				color: var(--text-primary);
+				font-size: var(--text-base);
 			}
 		}
 
