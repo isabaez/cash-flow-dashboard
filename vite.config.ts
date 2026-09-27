@@ -6,7 +6,7 @@ export default defineConfig({
 	css: {
 		preprocessorOptions: {
 			scss: {
-				// Lets components write `@use 'variables' as *;`
+				// Lets components write `@use 'breakpoints' as *;`
 				loadPaths: ['src/lib/styles']
 			}
 		}

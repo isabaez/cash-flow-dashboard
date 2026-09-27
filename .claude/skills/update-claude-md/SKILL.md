@@ -127,7 +127,7 @@ propose adding it.
 <!-- Filled in by /init-project. The CM path; the stack and the official docs used (with the date checked); the rules files and what each covers; the line budget; convention exceptions the dev approved. Facts only; nothing sensitive in a public repo. -->
 - CLAUDE.md is at the repo root; there is no `.claude/CLAUDE.md`.
 - Stack: SvelteKit 2 with Svelte 5 (runes) and adapter-node, TypeScript, Vite 6, SCSS, Drizzle ORM on SQLite
-  (better-sqlite3), Zod and Chart.js; Docker Compose adds an Ollama sidecar for the Insights page. No test runner.
+  (better-sqlite3) and Chart.js; Docker Compose adds an Ollama sidecar for the Insights page. No test runner.
 - Official docs used (checked 2026-09-26): Svelte (`$effect`, `$derived`, the v5 migration guide), SvelteKit (form
   actions, server-only modules, routing), Drizzle (transactions, `drizzle-kit push`), the better-sqlite3 API, MDN
   `<dialog>`, the WAI-ARIA APG (dialog, listbox, sortable table, meter), Sass `@use`. getbem.com didn't resolve and

@@ -52,6 +52,10 @@ and each entry says why the change was made.
 - `/categories` lists categories as wrapping tags with their expense counts instead of table rows; edit and delete are
   icons that appear on hover or keyboard focus and open modals, per the project's forms-in-modals convention (#12)
 
+### Removed
+
+- `zod` is no longer a dependency, since nothing in `src/` or `scripts/` imports it (#17)
+
 ### Security
 
 - `.claude/settings.local.json`, the per-machine Claude Code permissions file, is no longer committed and is ignored
