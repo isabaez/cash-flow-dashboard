@@ -38,7 +38,7 @@ export const paychecks = sqliteTable(
 			.notNull()
 			.default(sql`(date('now'))`)
 	},
-	(t) => ({ dateIdx: index('paychecks_date_idx').on(t.date) })
+	(table) => ({ dateIdx: index('paychecks_date_idx').on(table.date) })
 );
 
 /** Deductions applied to a single paycheck (taxes, 401k, insurance...) */
@@ -107,7 +107,7 @@ export const fundWithdrawals = sqliteTable(
 			.notNull()
 			.default(sql`(date('now'))`)
 	},
-	(t) => ({ dateIdx: index('fund_withdrawals_date_idx').on(t.date) })
+	(table) => ({ dateIdx: index('fund_withdrawals_date_idx').on(table.date) })
 );
 
 /** Money put into a fund by hand; not tied to any paycheck */
@@ -126,7 +126,7 @@ export const fundDeposits = sqliteTable(
 			.notNull()
 			.default(sql`(date('now'))`)
 	},
-	(t) => ({ dateIdx: index('fund_deposits_date_idx').on(t.date) })
+	(table) => ({ dateIdx: index('fund_deposits_date_idx').on(table.date) })
 );
 
 // ---------------------------------------------------------------------------
@@ -153,7 +153,7 @@ export const expenses = sqliteTable(
 			.notNull()
 			.default(sql`(date('now'))`)
 	},
-	(t) => ({ dateIdx: index('expenses_date_idx').on(t.date) })
+	(table) => ({ dateIdx: index('expenses_date_idx').on(table.date) })
 );
 
 /** Join table: an expense can carry any number of categories. */
@@ -168,7 +168,7 @@ export const expenseCategories = sqliteTable(
 			.notNull()
 			.references(() => categories.id, { onDelete: 'restrict' })
 	},
-	(t) => ({ expenseCategoryUnique: unique('expense_category_unique').on(t.expenseId, t.categoryId) })
+	(table) => ({ expenseCategoryUnique: unique('expense_category_unique').on(table.expenseId, table.categoryId) })
 );
 
 // ---------------------------------------------------------------------------
