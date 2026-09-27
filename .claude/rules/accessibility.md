@@ -16,7 +16,7 @@ paths:
 - A dialog is labelled from its visible title (`aria-labelledby`). When focus skips a sentence
   that explains it (a summary above the first field, a delete prompt), pass that element's id as
   `descriptionId` (`aria-describedby`). On close focus returns to the control that opened it, or
-  to `<main>` when a submit removed that control.
+  to `<main>` when that control is gone (a deleted row, an empty state that filled).
   Source: https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/ (checked 2026-09-27)
 - Listboxes (`PeriodFilter.svelte`): `role="listbox"` with a name, `role="option"` children with
   `aria-selected`, arrow keys plus Home and End. Options never hold buttons, links or checkboxes: a

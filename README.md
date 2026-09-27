@@ -81,9 +81,10 @@ docker-compose.yml   the app plus an Ollama sidecar; Dockerfile and docker-entry
   `.card`, `.field`, `.table`) are in `global.scss`. Breakpoints stay Sass: components write
   `@use 'breakpoints' as *;` (resolved via `loadPaths` in `vite.config.ts`).
 - **Forms** open in the shared `Modal.svelte` (native `<dialog>`, labelled by its title: focus
-  starts on the first field and is contained, Escape closes, and focus returns to the control
-  that opened it). Filtering is URL-param driven (`?month=YYYY-MM`, `?year=YYYY`, `?category=N`)
-  via `FilterBar.svelte`, plus `?q=` on Categories and `?period=` on a fund's transactions; load
+  starts on the first field, or on Close when there is none, and is contained; Escape closes, and
+  focus returns to the control that opened it, or to `<main>` when that control is gone).
+  Filtering is URL-param driven (`?month=YYYY-MM`, `?year=YYYY`, `?category=N`) via
+  `FilterBar.svelte`, plus `?q=` on Categories and `?period=` on a fund's transactions; load
   functions validate params and fall back to unfiltered.
 
 ## Net pay: the two-pass rule
