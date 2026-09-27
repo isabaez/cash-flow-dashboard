@@ -36,7 +36,7 @@ export function readChartTokens(): ChartTokens {
 		muted: read('--text-secondary'),
 		grid: read('--border-subtle'),
 		surface: read('--surface-1'),
-		series: Array.from({ length: 10 }, (_, i) => read(`--chart-${i + 1}`))
+		series: Array.from({ length: 10 }, (_, index) => read(`--chart-${index + 1}`))
 	};
 }
 
@@ -75,7 +75,7 @@ export function seriesLegend(tokens: ChartTokens) {
 			usePointStyle: true,
 			color: tokens.text,
 			generateLabels: (chart: Chart): LegendItem[] =>
-				chart.data.datasets.flatMap((ds, i) => {
+				chart.data.datasets.flatMap((ds, datasetIndex) => {
 					if ((ds as { hideInLegend?: boolean }).hideInLegend) return [];
 					const color = (ds.borderColor ?? ds.backgroundColor) as string;
 					return [
@@ -86,8 +86,8 @@ export function seriesLegend(tokens: ChartTokens) {
 							fontColor: tokens.text,
 							lineWidth: 0,
 							pointStyle: ((ds as { pointStyle?: PointStyle }).pointStyle ?? 'circle') as PointStyle,
-							hidden: !chart.isDatasetVisible(i),
-							datasetIndex: i
+							hidden: !chart.isDatasetVisible(datasetIndex),
+							datasetIndex
 						}
 					];
 				})
