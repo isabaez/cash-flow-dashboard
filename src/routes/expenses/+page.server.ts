@@ -17,7 +17,7 @@ export const load: PageServerLoad = async ({ url }) => {
 		...new Set(
 			url.searchParams
 				.getAll('category')
-				.filter((v) => /^\d+$/.test(v))
+				.filter((param) => /^\d+$/.test(param))
 				.map(Number)
 		)
 	];
@@ -52,11 +52,11 @@ export const load: PageServerLoad = async ({ url }) => {
 				fundWithdrawals: { with: { fund: true } }
 			},
 			where,
-			orderBy: (e, { desc: d }) => [d(e.date), d(e.id)],
+			orderBy: (expense, { desc: descending }) => [descending(expense.date), descending(expense.id)],
 			limit: 200
 		}),
-		db.query.categories.findMany({ orderBy: (c, { asc }) => [asc(c.name)] }),
-		db.query.funds.findMany({ orderBy: (f, { asc }) => [asc(f.name)] }),
+		db.query.categories.findMany({ orderBy: (category, { asc }) => [asc(category.name)] }),
+		db.query.funds.findMany({ orderBy: (fund, { asc }) => [asc(fund.name)] }),
 		db.selectDistinct({ month: monthCol }).from(expenses).orderBy(desc(monthCol)),
 		db.selectDistinct({ year: yearCol }).from(expenses).orderBy(desc(yearCol))
 	]);
@@ -66,8 +66,8 @@ export const load: PageServerLoad = async ({ url }) => {
 		expenses: expenseRows,
 		categories: categoryRows,
 		funds: fundRows,
-		availableMonths: monthRows.map((r) => r.month),
-		availableYears: yearRows.map((r) => r.year),
+		availableMonths: monthRows.map((row) => row.month),
+		availableYears: yearRows.map((row) => row.year),
 		filters: { month, year, categoryIds },
 		today
 	};
@@ -83,8 +83,8 @@ function readExpense(form: FormData) {
 	const fundId = fundRaw ? Number(fundRaw) : null;
 	const categoryIds = form
 		.getAll('categoryId')
-		.map((v) => Number(v))
-		.filter((n) => Number.isFinite(n) && n > 0);
+		.map((entry) => Number(entry))
+		.filter((id) => Number.isFinite(id) && id > 0);
 
 	if (!title) return { error: 'Title is required' as const };
 	if (amountCents === null || amountCents < 0) return { error: 'Enter a valid amount' as const };
@@ -188,16 +188,16 @@ export const actions: Actions = {
 			...new Set(
 				form
 					.getAll('expenseId')
-					.map((v) => Number(v))
-					.filter((n) => Number.isFinite(n) && n > 0)
+					.map((entry) => Number(entry))
+					.filter((id) => Number.isFinite(id) && id > 0)
 			)
 		];
 		const categoryIds = [
 			...new Set(
 				form
 					.getAll('categoryId')
-					.map((v) => Number(v))
-					.filter((n) => Number.isFinite(n) && n > 0)
+					.map((entry) => Number(entry))
+					.filter((id) => Number.isFinite(id) && id > 0)
 			)
 		];
 
@@ -211,7 +211,7 @@ export const actions: Actions = {
 				.from(expenseCategories)
 				.where(inArray(expenseCategories.expenseId, expenseIds))
 				.all();
-			const seen = new Set(existing.map((l) => `${l.expenseId}:${l.categoryId}`));
+			const seen = new Set(existing.map((link) => `${link.expenseId}:${link.categoryId}`));
 
 			const newPairs = [];
 			for (const expenseId of expenseIds) {
@@ -232,16 +232,16 @@ export const actions: Actions = {
 			...new Set(
 				form
 					.getAll('expenseId')
-					.map((v) => Number(v))
-					.filter((n) => Number.isFinite(n) && n > 0)
+					.map((entry) => Number(entry))
+					.filter((id) => Number.isFinite(id) && id > 0)
 			)
 		];
 		const categoryIds = [
 			...new Set(
 				form
 					.getAll('categoryId')
-					.map((v) => Number(v))
-					.filter((n) => Number.isFinite(n) && n > 0)
+					.map((entry) => Number(entry))
+					.filter((id) => Number.isFinite(id) && id > 0)
 			)
 		];
 
@@ -267,8 +267,8 @@ export const actions: Actions = {
 			...new Set(
 				form
 					.getAll('expenseId')
-					.map((v) => Number(v))
-					.filter((n) => Number.isFinite(n) && n > 0)
+					.map((entry) => Number(entry))
+					.filter((id) => Number.isFinite(id) && id > 0)
 			)
 		];
 		const fundRaw = form.get('fundId');
@@ -291,11 +291,11 @@ export const actions: Actions = {
 				.from(expenses)
 				.where(inArray(expenses.id, expenseIds))
 				.all();
-			for (const e of rows) {
-				syncExpenseWithdrawal(tx, e.id, fundId, {
-					title: e.title,
-					date: e.date,
-					amountCents: e.amountCents
+			for (const expense of rows) {
+				syncExpenseWithdrawal(tx, expense.id, fundId, {
+					title: expense.title,
+					date: expense.date,
+					amountCents: expense.amountCents
 				});
 			}
 		});
@@ -310,8 +310,8 @@ export const actions: Actions = {
 			...new Set(
 				form
 					.getAll('expenseId')
-					.map((v) => Number(v))
-					.filter((n) => Number.isFinite(n) && n > 0)
+					.map((entry) => Number(entry))
+					.filter((id) => Number.isFinite(id) && id > 0)
 			)
 		];
 
@@ -365,7 +365,7 @@ export const actions: Actions = {
 			const expenseId = Number(lastInsertRowid);
 			if (source.categoryLinks.length > 0) {
 				tx.insert(expenseCategories)
-					.values(source.categoryLinks.map((l) => ({ expenseId, categoryId: l.categoryId })))
+					.values(source.categoryLinks.map((link) => ({ expenseId, categoryId: link.categoryId })))
 					.run();
 			}
 			syncExpenseWithdrawal(tx, expenseId, source.fundWithdrawals[0]?.fundId ?? null, {

@@ -83,8 +83,8 @@
 		importFailures = [];
 
 		try {
-			for (let i = 0; i < importRows.length; i += IMPORT_BATCH_SIZE) {
-				const batch = importRows.slice(i, i + IMPORT_BATCH_SIZE);
+			for (let batchStart = 0; batchStart < importRows.length; batchStart += IMPORT_BATCH_SIZE) {
+				const batch = importRows.slice(batchStart, batchStart + IMPORT_BATCH_SIZE);
 				const res = await fetch('/expenses/import', {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
@@ -96,7 +96,7 @@
 					break;
 				}
 				const { results } = (await res.json()) as { results: RowResult[] };
-				importFailures = [...importFailures, ...results.filter((r) => !r.ok)];
+				importFailures = [...importFailures, ...results.filter((result) => !result.ok)];
 				importProcessed += batch.length;
 			}
 			importDone = true;
@@ -113,8 +113,8 @@
 	// Category objects for the currently-applied AND filter, in applied order.
 	const appliedCategories = $derived(
 		data.filters.categoryIds
-			.map((id) => data.categories.find((c) => c.id === id))
-			.filter((c): c is Category => c != null)
+			.map((id) => data.categories.find((category) => category.id === id))
+			.filter((category): category is Category => category != null)
 	);
 
 	function addCategoryFilter(id: number) {
@@ -126,7 +126,7 @@
 	function removeCategoryFilter(id: number) {
 		applyCategoryFilters(
 			page.url,
-			data.filters.categoryIds.filter((c) => c !== id)
+			data.filters.categoryIds.filter((categoryId) => categoryId !== id)
 		);
 	}
 
@@ -148,7 +148,7 @@
 
 	// Drop ids that no longer exist after a filter change or data reload.
 	$effect(() => {
-		const present = new Set(data.expenses.map((e) => e.id));
+		const present = new Set(data.expenses.map((expense) => expense.id));
 		const kept = selectedIds.filter((id) => present.has(id));
 		if (kept.length !== selectedIds.length) selectedIds = kept;
 	});
@@ -160,12 +160,12 @@
 
 	function toggleRow(id: number) {
 		selectedIds = selectedIds.includes(id)
-			? selectedIds.filter((s) => s !== id)
+			? selectedIds.filter((selectedId) => selectedId !== id)
 			: [...selectedIds, id];
 	}
 
 	function toggleAll() {
-		selectedIds = allSelected ? [] : data.expenses.map((e) => e.id);
+		selectedIds = allSelected ? [] : data.expenses.map((expense) => expense.id);
 	}
 
 	function toggleExpanded(id: number) {
@@ -274,7 +274,7 @@
 		<MultiSelect
 			options={data.categories}
 			name="categoryId"
-			selected={expense ? expense.categoryLinks.map((l) => l.categoryId) : []}
+			selected={expense ? expense.categoryLinks.map((link) => link.categoryId) : []}
 			label="Categories"
 			placeholder="No categories"
 		/>
