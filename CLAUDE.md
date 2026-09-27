@@ -194,6 +194,10 @@ Stack-specific practice from the official docs is in `.claude/rules/`, which loa
 - `global.scss` holds `.visually-hidden`, `.skip-link` (first in `+layout.svelte`), the
   `:focus-visible` ring and the one `prefers-reduced-motion` override; `scrollable`
   (`src/lib/actions.ts`) gives an overflowing table a tab stop. `--target-min` is 24px.
+- `Modal.svelte` is the dialog helper: it labels its `<dialog>` from the title (`descriptionId`
+  adds a description), renders the content only while open, and on close returns focus to the
+  opener, or to `<main>` (`js-focus-fallback`) when a submit removed it. Callers put `autofocus`
+  on the first field.
 - `npm run check:contrast` gates text (4.5:1), borders, the focus ring and chart series (3:1) in
   both themes. Dialogs, listboxes, sortable headers and meters: `.claude/rules/accessibility.md`.
 
