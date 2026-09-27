@@ -25,7 +25,7 @@
 
 	const needle = $derived(query.trim().toLowerCase());
 	const visible = $derived(
-		needle === '' ? data.categories : data.categories.filter((c) => c.name.toLowerCase().includes(needle))
+		needle === '' ? data.categories : data.categories.filter((category) => category.name.toLowerCase().includes(needle))
 	);
 
 	function syncQuery() {
@@ -43,18 +43,18 @@
 	// --- Modals -------------------------------------------------------------
 	// Bright, saturated color so the tag reads on the dark surface.
 	function randomColor(): string {
-		const h = Math.floor(Math.random() * 360);
-		const s = 0.6 + Math.random() * 0.3;
-		const l = 0.55 + Math.random() * 0.15;
-		const a = s * Math.min(l, 1 - l);
-		const f = (n: number) => {
-			const k = (n + h / 30) % 12;
-			const c = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
-			return Math.round(255 * c)
+		const hue = Math.floor(Math.random() * 360);
+		const saturation = 0.6 + Math.random() * 0.3;
+		const lightness = 0.55 + Math.random() * 0.15;
+		const amplitude = saturation * Math.min(lightness, 1 - lightness);
+		const channelHex = (offset: number) => {
+			const sector = (offset + hue / 30) % 12;
+			const channel = lightness - amplitude * Math.max(-1, Math.min(sector - 3, 9 - sector, 1));
+			return Math.round(255 * channel)
 				.toString(16)
 				.padStart(2, '0');
 		};
-		return `#${f(0)}${f(8)}${f(4)}`;
+		return `#${channelHex(0)}${channelHex(8)}${channelHex(4)}`;
 	}
 
 	function openAdd() {
@@ -67,7 +67,7 @@
 	}
 
 	function otherCategories(id: number) {
-		return data.categories.filter((c) => c.id !== id);
+		return data.categories.filter((category) => category.id !== id);
 	}
 
 	// Close the modal only once the action succeeds; a validation failure keeps it

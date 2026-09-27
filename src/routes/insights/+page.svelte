@@ -50,7 +50,7 @@
 		section.status = 'done';
 	}
 
-	const isBusy = (s: Section) => s.status === 'loading' || s.status === 'streaming';
+	const isBusy = (section: Section) => section.status === 'loading' || section.status === 'streaming';
 
 	/** Split a line into plain / **bold** segments (no raw HTML — safe by construction). */
 	function segments(line: string): { text: string; bold: boolean }[] {

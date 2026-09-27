@@ -47,7 +47,7 @@
 		label: string;
 	} = $props();
 
-	const selectedIndex = $derived(Math.max(0, options.findIndex((o) => o.value === (value ?? ''))));
+	const selectedIndex = $derived(Math.max(0, options.findIndex((option) => option.value === (value ?? ''))));
 	const triggerLabel = $derived(options[selectedIndex]?.label ?? options[0]?.label ?? '');
 
 	let open = $state(false);

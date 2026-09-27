@@ -72,8 +72,8 @@
 	// while it is open, drop the open state so <main> does not stay inert.
 	$effect(() => {
 		const query = window.matchMedia('(min-width: 1024px)');
-		const onChange = (e: MediaQueryListEvent) => {
-			if (e.matches) menuOpen = false;
+		const onChange = (event: MediaQueryListEvent) => {
+			if (event.matches) menuOpen = false;
 		};
 		query.addEventListener('change', onChange);
 		return () => query.removeEventListener('change', onChange);
