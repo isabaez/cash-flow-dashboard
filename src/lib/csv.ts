@@ -12,7 +12,7 @@ export function parseCsv(text: string): string[][] {
 	let row: string[] = [];
 	let field = '';
 	let inQuotes = false;
-	let i = 0;
+	let position = 0;
 
 	const pushField = () => {
 		row.push(field);
@@ -25,50 +25,50 @@ export function parseCsv(text: string): string[][] {
 		row = [];
 	};
 
-	while (i < text.length) {
-		const char = text[i];
+	while (position < text.length) {
+		const char = text[position];
 
 		if (inQuotes) {
 			if (char === '"') {
-				if (text[i + 1] === '"') {
+				if (text[position + 1] === '"') {
 					// Escaped quote inside a quoted field.
 					field += '"';
-					i += 2;
+					position += 2;
 					continue;
 				}
 				inQuotes = false;
-				i++;
+				position++;
 				continue;
 			}
 			field += char;
-			i++;
+			position++;
 			continue;
 		}
 
 		if (char === '"') {
 			inQuotes = true;
-			i++;
+			position++;
 			continue;
 		}
 		if (char === ',') {
 			pushField();
-			i++;
+			position++;
 			continue;
 		}
 		if (char === '\r') {
 			// Handle CRLF and lone CR as a single row break.
 			pushRow();
-			if (text[i + 1] === '\n') i++;
-			i++;
+			if (text[position + 1] === '\n') position++;
+			position++;
 			continue;
 		}
 		if (char === '\n') {
 			pushRow();
-			i++;
+			position++;
 			continue;
 		}
 		field += char;
-		i++;
+		position++;
 	}
 
 	// Flush the final field/row if the file didn't end with a newline.
@@ -91,7 +91,7 @@ const HEADER = ['date', 'title', 'amount', 'categories'];
 
 /** True when a parsed row looks like the expected header (case-insensitive). */
 function isHeaderRow(cells: string[]): boolean {
-	return HEADER.every((name, i) => (cells[i] ?? '').trim().toLowerCase() === name);
+	return HEADER.every((name, index) => (cells[index] ?? '').trim().toLowerCase() === name);
 }
 
 /**

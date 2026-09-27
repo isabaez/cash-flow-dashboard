@@ -19,28 +19,28 @@ const MONTH_NAMES = [
  * input (e.g. the "—" placeholder) is returned unchanged.
  */
 export function formatDate(iso: string): string {
-	const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-	if (!m) return iso;
-	const [, year, month, day] = m;
+	const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+	if (!match) return iso;
+	const [, year, month, day] = match;
 	return `${MONTH_NAMES[Number(month) - 1]} ${Number(day)}, ${year}`;
 }
 
 /** Format a month key (YYYY-MM) as e.g. "Aug 2026"; non-matching input is returned unchanged. */
 export function monthLabel(month: string): string {
-	const [y, m] = month.split('-');
-	return `${MONTH_NAMES[Number(m) - 1] ?? m} ${y}`;
+	const [yearPart, monthPart] = month.split('-');
+	return `${MONTH_NAMES[Number(monthPart) - 1] ?? monthPart} ${yearPart}`;
 }
 
 /** Next month key: "2026-08" -> "2026-09", rolling the year over at December. */
 export function nextMonth(month: string): string {
-	const [y, m] = month.split('-').map(Number);
-	return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+	const [year, monthNumber] = month.split('-').map(Number);
+	return monthNumber === 12 ? `${year + 1}-01` : `${year}-${String(monthNumber + 1).padStart(2, '0')}`;
 }
 
 /** Contiguous, inclusive list of month keys from `start` to `end` (empty if start > end). */
 export function monthRange(start: string, end: string): string[] {
 	const months: string[] = [];
-	for (let m = start; m <= end; m = nextMonth(m)) months.push(m);
+	for (let month = start; month <= end; month = nextMonth(month)) months.push(month);
 	return months;
 }
 
@@ -50,9 +50,9 @@ export function monthRange(start: string, end: string): string[] {
  * CSV expense importer; expenses are stored as ISO date strings.
  */
 export function parseUsDate(input: string): string | null {
-	const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(input.trim());
-	if (!m) return null;
-	const [, mm, dd, yyyy] = m;
+	const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(input.trim());
+	if (!match) return null;
+	const [, mm, dd, yyyy] = match;
 	const month = Number(mm);
 	const day = Number(dd);
 	const year = Number(yyyy);
