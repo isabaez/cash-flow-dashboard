@@ -316,11 +316,13 @@
 <style lang="scss">
 	.category-form {
 		display: flex;
+		flex-wrap: wrap; // at phone width the colour and the button wrap under the name
 		align-items: flex-end;
 		gap: var(--space-4);
 
 		.field {
-			flex: 1;
+			flex: 1 1 10rem;
+			min-inline-size: 0;
 			margin-bottom: 0;
 		}
 
@@ -337,9 +339,10 @@
 
 		&__actions {
 			display: flex;
+			flex-wrap: wrap;
 			justify-content: flex-end;
 			align-items: center;
-			gap: var(--space-4);
+			gap: var(--space-2);
 			margin-top: var(--space-4);
 		}
 	}

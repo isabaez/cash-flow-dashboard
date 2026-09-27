@@ -855,8 +855,9 @@
 		font-size: var(--text-sm);
 	}
 
+	// Leads the Duplicate dialog, spaced like the other dialogs' opening sentences.
 	.duplicate-hint {
-		margin: var(--space-2) 0 0;
+		margin: 0 0 var(--space-4);
 		color: var(--text-secondary);
 	}
 </style>

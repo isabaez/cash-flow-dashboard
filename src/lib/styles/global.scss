@@ -462,6 +462,7 @@ select.field__input {
 // Page title row with a trailing action button (e.g. "Add …")
 .page-header {
 	display: flex;
+	flex-wrap: wrap; // the actions drop below the title when both don't fit (320px, zoom)
 	align-items: center;
 	justify-content: space-between;
 	gap: var(--space-4);

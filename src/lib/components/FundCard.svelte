@@ -275,20 +275,26 @@
 			color: var(--text-secondary);
 		}
 
+		// The label gives way first (a zero basis lets it wrap onto two lines); only
+		// when even its longest word and the amount don't fit side by side, as in the
+		// 4-up card at 16px ("Contributions  $21,600.00"), does the amount wrap under
+		// it, still right-aligned.
 		&__total {
 			display: flex;
+			flex-wrap: wrap;
 			align-items: baseline;
 			justify-content: space-between;
-			gap: var(--space-2);
+			gap: 0 var(--space-2);
 			min-inline-size: 0;
 
 			dt {
+				flex: 1 1 0;
 				overflow-wrap: break-word;
 			}
 
 			// The amounts are body text; the row labels stay at the label size.
 			dd {
-				margin: 0;
+				margin: 0 0 0 auto;
 				color: var(--text-primary);
 				font-size: var(--text-base);
 			}

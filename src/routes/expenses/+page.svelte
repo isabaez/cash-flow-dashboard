@@ -860,6 +860,7 @@
 
 	.page-header__actions {
 		display: flex;
+		flex-wrap: wrap;
 		gap: var(--space-2);
 	}
 
