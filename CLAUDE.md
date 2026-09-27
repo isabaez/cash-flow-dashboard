@@ -135,8 +135,8 @@ the symlink is excluded repo-wide via `.git/info/exclude` instead — do not com
 ### Change a design element
 1. Edit the token in both theme mixins (`theme-dark`, `theme-light`) in
    `src/lib/styles/_tokens.scss`.
-2. `npm run check:contrast` must pass. Shared blocks (`.button`, `.card`, `.field`, `.table`)
-   are in `global.scss`.
+2. `npm run check:contrast` must pass. Shared blocks (`.button`, `.card`, `.field`, `.table`,
+   `.form-error`) are in `global.scss`.
 3. Check both themes at phone width, 768px and 1024px.
 
 <!-- init-project:conventions v1 — managed by /init-project; re-sync replaces everything up to the end marker, so put project notes below it -->
@@ -167,6 +167,9 @@ Stack-specific practice from the official docs is in `.claude/rules/`, which loa
   default + light override). Component CSS writes `var(--surface-1)` directly — there is no
   Sass variable bridge. Breakpoints stay Sass in `_breakpoints.scss` because media queries
   cannot read custom properties.
+- **Type roles:** body text (sentences, values, table cells, messages, options) is
+  `--text-base` (16px) or larger; `--text-sm` (14px) is for labels and controls (field labels,
+  hints, buttons, nav, chips, counts), `--text-xs` (12px) for column headers and badges.
 - **Colour means state.** Green and red are reserved for financial polarity, never
   decoration, and never the sole carrier of meaning — pair them with a sign, an arrow, a
   dash pattern or a label.
@@ -182,7 +185,7 @@ Stack-specific practice from the official docs is in `.claude/rules/`, which loa
 - Hover-revealed controls must also appear on `:focus-within`, and be permanently visible
   under `@media (hover: none)`. Hit areas meet `--target-min`.
 - **Form errors** come back as `fail(400, { error })` and render in
-  `<p class="form-error" role="alert">`.
+  `<p class="form-error" role="alert">`, a shared block in `global.scss`.
 - **Sass modules:** `@use` only (`@import` is deprecated); `loadPaths` in `vite.config.ts`
   resolves `@use 'breakpoints' as *;` from `src/lib/styles/`.
 - **Exception, approved:** colour maths (`scripts/check-contrast.mjs`, `src/lib/color.ts`)
