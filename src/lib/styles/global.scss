@@ -253,7 +253,9 @@ main[tabindex='-1']:focus {
 			border-color var(--dur-fast) var(--ease-out),
 			box-shadow var(--dur-fast) var(--ease-out);
 
-		&:hover:not(:disabled) {
+		// Not while focused: a dialog opens with focus on a field that is often under the
+		// pointer, and the hover border would outrank the accent focus border.
+		&:hover:not(:disabled, :focus-visible) {
 			border-color: var(--text-tertiary);
 		}
 
