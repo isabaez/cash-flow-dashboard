@@ -51,7 +51,7 @@
 	 */
 	const categoryPeriodOptions = $derived([
 		{ value: '', label: 'All time' },
-		...data.availableMonths.map((m) => ({ value: m, label: monthLabel(m) }))
+		...data.availableMonths.map((month) => ({ value: month, label: monthLabel(month) }))
 	]);
 
 	// Shared option fragments (Chart.js configs are plain objects).
@@ -66,7 +66,7 @@
 
 	// --- 1. Monthly net income vs expenses (grouped bars) ---------------------
 	const hasCashFlow = $derived(
-		data.netIncomeCents.some((c) => c !== 0) || data.expensesCents.some((c) => c !== 0)
+		data.netIncomeCents.some((cents) => cents !== 0) || data.expensesCents.some((cents) => cents !== 0)
 	);
 	const cashFlowData = $derived({
 		labels,
@@ -98,7 +98,7 @@
 	// up to (net worth already answers that).
 	const savingsOverviewData = $derived({
 		labels,
-		datasets: data.fundSeries.map((fund, i) => {
+		datasets: data.fundSeries.map((fund, index) => {
 			const color = seriesColor(tokens, fund.colorSlot);
 			return {
 				label: fund.name,
@@ -109,7 +109,7 @@
 				tension: 0.25,
 				// Marker shape as well as colour, so the lines stay separable without
 				// relying on hue alone.
-				pointStyle: pointStyle(i),
+				pointStyle: pointStyle(index),
 				pointRadius: 2
 			};
 		})
@@ -127,13 +127,13 @@
 	// sum to a meaningful whole. Each bar carries its category's own colour; the
 	// synthetic "Uncategorized" bar takes a palette slot instead.
 	const categoryData = $derived({
-		labels: data.categoryBreakdown.map((c) => c.name),
+		labels: data.categoryBreakdown.map((category) => category.name),
 		datasets: [
 			{
 				label: 'Spent',
-				data: data.categoryBreakdown.map((c) => toDollars(c.cents)),
-				backgroundColor: data.categoryBreakdown.map((c) =>
-					c.color ?? seriesColor(tokens, c.colorSlot ?? 0)
+				data: data.categoryBreakdown.map((category) => toDollars(category.cents)),
+				backgroundColor: data.categoryBreakdown.map((category) =>
+					category.color ?? seriesColor(tokens, category.colorSlot ?? 0)
 				),
 				borderRadius: 4
 			}
@@ -156,7 +156,7 @@
 	});
 
 	// --- 4. Savings rate over time (percent line) -----------------------------
-	const hasSavingsRate = $derived(data.savingsRate.some((v) => v !== null));
+	const hasSavingsRate = $derived(data.savingsRate.some((rate) => rate !== null));
 	const savingsRateData = $derived({
 		labels,
 		datasets: [
@@ -200,9 +200,9 @@
 
 	// --- 5. Paycheck flow breakdown (stacked bars) ----------------------------
 	const hasFlow = $derived(
-		data.flow.deductionsCents.some((c) => c !== 0) ||
-			data.flow.allocationsCents.some((c) => c !== 0) ||
-			data.flow.takeHomeCents.some((c) => c !== 0)
+		data.flow.deductionsCents.some((cents) => cents !== 0) ||
+			data.flow.allocationsCents.some((cents) => cents !== 0) ||
+			data.flow.takeHomeCents.some((cents) => cents !== 0)
 	);
 	const flowData = $derived({
 		labels,
