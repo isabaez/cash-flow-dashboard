@@ -4,3 +4,6 @@
 # Fonts are binary; never let LF normalization touch them.
 *.woff2 binary
 *.woff binary
+
+# Keep both sides' changelog bullets when branches merge
+CHANGELOG.md merge=union
