@@ -38,17 +38,18 @@
 	});
 
 	// Closing a modal <dialog> returns focus to the opener by itself. Two cases need
-	// help: a close that bypassed that (focus is left on <body>), and an opener that a
-	// submit removed (a deleted row, an empty state that filled), where focus moves to
-	// <main> instead. Runs from the effect and from `onclose`; whichever comes first wins.
+	// help: a close that bypassed that (focus is left on <body>, or on the Close button
+	// the closed dialog now hides), and an opener that is gone (a deleted row, an empty
+	// state that filled), where focus moves to <main> instead. Runs from the effect and
+	// from `onclose`; whichever comes first wins.
 	function restoreFocus() {
 		const returnTo = opener;
 		opener = null;
 		if (!(returnTo instanceof HTMLElement) || returnTo === document.body) return;
 		const focused = document.activeElement;
-		if (focused && focused !== document.body) return;
+		if (focused && focused !== document.body && !dialog?.contains(focused)) return;
 		if (returnTo.isConnected) returnTo.focus();
-		else focusMain();
+		if (document.activeElement !== returnTo) focusMain();
 	}
 
 	// As GOV.UK's skip link does: <main> takes a tabindex only while it holds focus,
@@ -81,6 +82,8 @@
 	aria-labelledby={titleId}
 	aria-describedby={descriptionId}
 	onclose={() => {
+		// The close event is queued: ignore one that arrives after the dialog reopened.
+		if (dialog?.open) return;
 		open = false;
 		restoreFocus();
 	}}
