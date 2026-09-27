@@ -56,6 +56,7 @@
 	let trigger = $state<HTMLButtonElement>();
 	let listbox = $state<HTMLDivElement>();
 	let root = $state<HTMLDivElement>();
+	let optionElements = $state<HTMLDivElement[]>([]);
 
 	const baseId = $props.id();
 	const listboxId = `${baseId}-listbox`;
@@ -100,7 +101,7 @@
 
 	function moveTo(index: number) {
 		activeIndex = Math.min(options.length - 1, Math.max(0, index));
-		document.getElementById(optionId(activeIndex))?.scrollIntoView({ block: 'nearest' });
+		optionElements[activeIndex]?.scrollIntoView({ block: 'nearest' });
 	}
 
 	function handleTriggerKeydown(event: KeyboardEvent) {
@@ -185,6 +186,7 @@
 			{#each options as option, index (option.value)}
 				<!-- svelte-ignore a11y_click_events_have_key_events -- keyboard is handled on the listbox, per the aria-activedescendant model -->
 				<div
+					bind:this={optionElements[index]}
 					id={optionId(index)}
 					class="period-filter__option"
 					tabindex="-1"

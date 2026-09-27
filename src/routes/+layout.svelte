@@ -10,7 +10,7 @@
 	// Mobile drawer.
 	let menuOpen = $state(false);
 	let menuButton = $state<HTMLButtonElement>();
-	let drawer = $state<HTMLElement>();
+	let navLinkElements = $state<HTMLAnchorElement[]>([]);
 
 	// Desktop sidebar collapsed to an icon rail.
 	let collapsed = $state(false);
@@ -41,10 +41,10 @@
 	$effect(() => {
 		if (!menuOpen) return;
 		const frame = requestAnimationFrame(() => {
-			// `.nav__link`, not just `a`: the first anchor in the drawer is the brand,
+			// `navLinkElements[0]`, not the drawer's first anchor: that is the brand,
 			// which is display:none below the sidebar breakpoint — i.e. exactly where
 			// the drawer is used — so focusing it would silently do nothing.
-			drawer?.querySelector<HTMLAnchorElement>('.nav__link')?.focus();
+			navLinkElements[0]?.focus();
 		});
 		return () => cancelAnimationFrame(frame);
 	});
@@ -111,7 +111,6 @@
 	{/if}
 
 	<aside
-		bind:this={drawer}
 		id="primary-nav"
 		class="sidebar"
 		class:sidebar--open={menuOpen}
@@ -123,8 +122,9 @@
 		</a>
 
 		<nav class="nav" aria-label="Primary">
-			{#each navLinks as link (link.href)}
+			{#each navLinks as link, index (link.href)}
 				<a
+					bind:this={navLinkElements[index]}
 					class="nav__link"
 					class:nav__link--active={page.url.pathname === link.href}
 					aria-current={page.url.pathname === link.href ? 'page' : undefined}
