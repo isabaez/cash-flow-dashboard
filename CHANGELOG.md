@@ -52,6 +52,19 @@ and each entry says why the change was made.
 - `/categories` lists categories as wrapping tags with their expense counts instead of table rows; edit and delete are
   icons that appear on hover or keyboard focus and open modals, per the project's forms-in-modals convention (#12)
 
+### Fixed
+
+- Dialogs are announced with their title, and duplicate, import, deposit, withdrawal and delete dialogs also with the
+  sentence that explains them, since a screen reader announced each dialog without its title (#16)
+- Dialogs open with focus on their first field instead of the Close button, as MDN's `<dialog>` guidance and the
+  WAI-ARIA dialog pattern recommend; a delete prompt with nothing to fill in still starts on Close (#16)
+- When a dialog closes and the button that opened it is gone (a deleted category or fund, an empty state that
+  filled), focus moves to the page's main content instead of being lost (#16)
+- The CSV import's file input has a visible "CSV file" label, since it had no accessible name and is now where the
+  dialog's focus starts (#16)
+- A focused field under the pointer keeps its accent focus border instead of the grey hover border, so focus stays
+  visible when a dialog opens under the mouse (#16)
+
 ### Security
 
 - `.claude/settings.local.json`, the per-machine Claude Code permissions file, is no longer committed and is ignored

@@ -28,6 +28,10 @@
 		withdraw: 'Record withdrawal'
 	};
 
+	// These open with a sentence naming the fund. Focus starts past it (on the amount,
+	// or on Close for a delete), so the dialog is described by it instead.
+	const kindsWithSummary: ModalKind[] = ['delete', 'deposit', 'withdraw'];
+
 	function openModal(kind: ModalKind, fund: Fund | null = null) {
 		modal = { kind, fund };
 	}
@@ -195,6 +199,7 @@
 {#snippet fundFields(fund: Fund | null, idPrefix: string)}
 	<div class="field">
 		<label class="field__label" for="{idPrefix}-name">Name</label>
+		<!-- svelte-ignore a11y_autofocus -- Modal's <dialog> focuses this field when it opens -->
 		<input
 			class="field__input"
 			id="{idPrefix}-name"
@@ -202,6 +207,7 @@
 			required
 			placeholder="e.g. Emergency Fund"
 			value={fund?.name ?? ''}
+			autofocus
 		/>
 	</div>
 	<div class="field">
@@ -236,12 +242,14 @@
 {#snippet movementFields(idPrefix: string, amountLabel: string)}
 	<div class="field">
 		<label class="field__label" for="{idPrefix}-amount">{amountLabel}</label>
+		<!-- svelte-ignore a11y_autofocus -- Modal's <dialog> focuses this field when it opens -->
 		<input
 			class="field__input"
 			id="{idPrefix}-amount"
 			name="amount"
 			required
 			placeholder="e.g. 500.00"
+			autofocus
 		/>
 	</div>
 	<div class="field">
@@ -263,6 +271,7 @@
 
 <Modal
 	title={modal ? modalTitles[modal.kind] : ''}
+	descriptionId={modal && kindsWithSummary.includes(modal.kind) ? 'fund-summary' : undefined}
 	bind:open={() => modal !== null, (v) => { if (!v) modal = null; }}
 >
 	<!-- Keyed on the open modal: after a save the form resets and its DOM inputs
@@ -287,7 +296,7 @@
 		{:else if modal?.kind === 'delete' && modal.fund}
 			<form method="POST" action="?/deleteFund" use:enhance={closeOnSuccess}>
 				<input type="hidden" name="id" value={modal.fund.id} />
-				<p class="confirm">
+				<p class="confirm" id="fund-summary">
 					Delete <strong>{modal.fund.name}</strong>? Its paycheck allocations, deposits and
 					withdrawals are deleted with it. This cannot be undone.
 				</p>
@@ -301,14 +310,14 @@
 		{:else if modal?.kind === 'deposit' && modal.fund}
 			<form method="POST" action="?/createDeposit" use:enhance={closeOnSuccess}>
 				<input type="hidden" name="fundId" value={modal.fund.id} />
-				<p class="modal-subject">Into <strong>{modal.fund.name}</strong></p>
+				<p class="modal-subject" id="fund-summary">Into <strong>{modal.fund.name}</strong></p>
 				{@render movementFields(`dp-${modal.fund.id}`, 'Deposit amount')}
 				<button class="button" type="submit">Add deposit</button>
 			</form>
 		{:else if modal?.kind === 'withdraw' && modal.fund}
 			<form method="POST" action="?/createWithdrawal" use:enhance={closeOnSuccess}>
 				<input type="hidden" name="fundId" value={modal.fund.id} />
-				<p class="modal-subject">Out of <strong>{modal.fund.name}</strong></p>
+				<p class="modal-subject" id="fund-summary">Out of <strong>{modal.fund.name}</strong></p>
 				{@render movementFields(`wd-${modal.fund.id}`, 'Withdrawal amount')}
 				<button class="button" type="submit">Record withdrawal</button>
 			</form>

@@ -111,7 +111,15 @@
 		<form class="category-form" method="POST" action="?/create" use:enhance={closeOnSuccess}>
 			<div class="field">
 				<label class="field__label" for="new-name">Name</label>
-				<input class="field__input" id="new-name" name="name" required placeholder="e.g. Groceries" />
+				<!-- svelte-ignore a11y_autofocus -- Modal's <dialog> focuses this field when it opens -->
+				<input
+					class="field__input"
+					id="new-name"
+					name="name"
+					required
+					placeholder="e.g. Groceries"
+					autofocus
+				/>
 			</div>
 			<div class="field field--color">
 				<label class="field__label" for="new-color">Color</label>
@@ -137,12 +145,14 @@
 				<input type="hidden" name="id" value={modal.category.id} />
 				<div class="field">
 					<label class="field__label" for="edit-name">Name</label>
+					<!-- svelte-ignore a11y_autofocus -- Modal's <dialog> focuses this field when it opens -->
 					<input
 						class="field__input"
 						id="edit-name"
 						name="name"
 						required
 						value={modal.category.name}
+						autofocus
 					/>
 				</div>
 				<div class="field field--color">
@@ -164,6 +174,7 @@
 <Modal
 	bind:open={() => modal?.kind === 'delete', (open) => !open && closeModal()}
 	title="Delete category"
+	descriptionId="delete-summary"
 >
 	{#if form?.error}
 		<p class="form-error" role="alert">{form.error}</p>
@@ -173,7 +184,7 @@
 			{@const category = modal.category}
 			<form class="delete-form" method="POST" action="?/delete" use:enhance={closeOnSuccess}>
 				<input type="hidden" name="id" value={category.id} />
-				<p class="delete-form__lede">
+				<p class="delete-form__lede" id="delete-summary">
 					Delete <CategoryTag name={category.name} color={category.color} />?
 					{#if category.expenseCount === 0}
 						No expenses use it.
@@ -185,7 +196,8 @@
 				{#if category.expenseCount > 0}
 					<div class="field">
 						<label class="field__label" for="replacement">Move its expenses to</label>
-						<select class="field__input" id="replacement" name="replacementId">
+						<!-- svelte-ignore a11y_autofocus -- Modal's <dialog> focuses this field when it opens -->
+						<select class="field__input" id="replacement" name="replacementId" autofocus>
 							<option value="">Nothing — just remove the tag</option>
 							{#each otherCategories(category.id) as other (other.id)}
 								<option value={other.id}>{other.name}</option>

@@ -115,6 +115,7 @@
 	<div class="paycheck-form__grid">
 		<div class="field">
 			<label class="field__label" for="{idPrefix}-title">Source</label>
+			<!-- svelte-ignore a11y_autofocus -- Modal's <dialog> focuses this field when it opens -->
 			<input
 				class="field__input"
 				id="{idPrefix}-title"
@@ -122,6 +123,7 @@
 				required
 				placeholder="e.g. Acme payroll"
 				value={paycheck?.title ?? ''}
+				autofocus
 			/>
 		</div>
 		<div class="field">
@@ -208,13 +210,13 @@
 	{/key}
 </Modal>
 
-<Modal bind:open={showDuplicateModal} title="Duplicate paycheck">
+<Modal bind:open={showDuplicateModal} title="Duplicate paycheck" descriptionId="duplicate-summary">
 	{#if form?.error}
 		<p class="form-error" role="alert">{form.error}</p>
 	{/if}
 	{#key showDuplicateModal}
 	{#if duplicating}
-		<p class="hint">
+		<p class="hint" id="duplicate-summary">
 			Copies “{duplicating.title}” ({formatCents(duplicating.grossCents)} gross) with
 			{duplicating.deductions.length}
 			{duplicating.deductions.length === 1 ? 'deduction' : 'deductions'} and
@@ -233,12 +235,14 @@
 			<input type="hidden" name="id" value={duplicating.id} />
 			<div class="field">
 				<label class="field__label" for="duplicate-title">Source</label>
+				<!-- svelte-ignore a11y_autofocus -- Modal's <dialog> focuses this field when it opens -->
 				<input
 					class="field__input"
 					id="duplicate-title"
 					name="title"
 					required
 					value={duplicating.title}
+					autofocus
 				/>
 			</div>
 			<div class="field">
