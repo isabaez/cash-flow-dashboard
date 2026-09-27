@@ -41,7 +41,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	// Seed a name→id map from existing categories (keyed case-insensitively).
 	const existing = await db.query.categories.findMany();
 	const categoryIdByName = new Map<string, number>();
-	for (const c of existing) categoryIdByName.set(normalize(c.name), c.id);
+	for (const category of existing) categoryIdByName.set(normalize(category.name), category.id);
 
 	/** Resolve a category name to an id, creating it if it doesn't exist yet. */
 	function resolveCategoryId(rawName: string): number {
@@ -91,8 +91,8 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		const categoryNames = categoriesInput
 			.split(',')
-			.map((c) => c.trim())
-			.filter((c) => c.length > 0);
+			.map((name) => name.trim())
+			.filter((name) => name.length > 0);
 
 		try {
 			const categoryIds = [...new Set(categoryNames.map(resolveCategoryId))];

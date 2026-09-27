@@ -71,12 +71,12 @@
 
 	/** Net take-home: gross minus the stored resolved deduction amounts. */
 	function netCents(paycheck: Paycheck): number {
-		return paycheck.deductions.reduce((net, d) => net - d.resolvedCents, paycheck.grossCents);
+		return paycheck.deductions.reduce((net, deduction) => net - deduction.resolvedCents, paycheck.grossCents);
 	}
 
 	/** Total funneled into funds from this paycheck. */
 	function allocatedCents(paycheck: Paycheck): number {
-		return paycheck.allocations.reduce((sum, a) => sum + a.resolvedCents, 0);
+		return paycheck.allocations.reduce((sum, allocation) => sum + allocation.resolvedCents, 0);
 	}
 
 	function dollars(cents: number): string {
