@@ -71,6 +71,12 @@ h1 {
 	border-radius: var(--radius-sm);
 }
 
+// Modal.svelte focuses <main> (tabindex -1, only while focused) when the control that
+// opened a dialog is gone. It's a region, not a control, so it gets no ring.
+main[tabindex='-1']:focus {
+	outline: none;
+}
+
 // --- Utilities -------------------------------------------------------------
 
 .visually-hidden {

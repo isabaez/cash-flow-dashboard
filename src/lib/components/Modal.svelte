@@ -4,17 +4,62 @@
 	let {
 		open = $bindable(false),
 		title,
+		descriptionId,
 		children
-	}: { open?: boolean; title: string; children: Snippet } = $props();
+	}: {
+		open?: boolean;
+		title: string;
+		/** Id of an element in the content that describes the dialog, read out when it opens. */
+		descriptionId?: string;
+		children: Snippet;
+	} = $props();
+
+	// The visible title names the dialog (aria-labelledby).
+	const titleId = $props.id();
 
 	let dialog = $state<HTMLDialogElement>();
 
-	// Keep the native <dialog> in sync with the `open` state.
+	// Whatever had focus when the dialog opened: focus goes back there on close.
+	let opener: Element | null = null;
+
+	// Keep the native <dialog> in sync with the `open` state. The content renders only
+	// while open, so a caller's `autofocus` field exists when showModal() looks for it —
+	// and never lingers in a closed dialog, where SvelteKit's focus reset after
+	// navigation and form actions would pick it (it focuses any `[autofocus]` it finds).
 	$effect(() => {
 		if (!dialog) return;
-		if (open && !dialog.open) dialog.showModal();
-		else if (!open && dialog.open) dialog.close();
+		if (open && !dialog.open) {
+			opener = document.activeElement;
+			dialog.showModal();
+		} else if (!open && dialog.open) {
+			dialog.close();
+			restoreFocus();
+		}
 	});
+
+	// Closing a modal <dialog> returns focus to the opener by itself. Two cases need
+	// help: a close that bypassed that (focus is left on <body>), and an opener that a
+	// submit removed (a deleted row, an empty state that filled), where focus moves to
+	// <main> instead. Runs from the effect and from `onclose`; whichever comes first wins.
+	function restoreFocus() {
+		const returnTo = opener;
+		opener = null;
+		if (!(returnTo instanceof HTMLElement) || returnTo === document.body) return;
+		const focused = document.activeElement;
+		if (focused && focused !== document.body) return;
+		if (returnTo.isConnected) returnTo.focus();
+		else focusMain();
+	}
+
+	// As GOV.UK's skip link does: <main> takes a tabindex only while it holds focus,
+	// and global.scss hides the ring on it, since it is a region, not a control.
+	function focusMain() {
+		const main = dialog?.closest<HTMLElement>('.js-focus-fallback');
+		if (!main) return;
+		main.tabIndex = -1;
+		main.addEventListener('blur', () => main.removeAttribute('tabindex'), { once: true });
+		main.focus({ preventScroll: true });
+	}
 
 	// Close when the backdrop (the dialog element itself) is clicked.
 	function handleClick(event: MouseEvent) {
@@ -33,20 +78,27 @@
 <dialog
 	bind:this={dialog}
 	class="modal"
-	onclose={() => (open = false)}
+	aria-labelledby={titleId}
+	aria-describedby={descriptionId}
+	onclose={() => {
+		open = false;
+		restoreFocus();
+	}}
 	onclick={handleClick}
 	onkeydown={handleKeydown}
 >
 	<div class="modal__panel">
 		<div class="modal__header">
-			<h2 class="modal__title">{title}</h2>
+			<h2 class="modal__title" id={titleId}>{title}</h2>
 			<button class="modal__close" type="button" aria-label="Close" onclick={() => (open = false)}>
 				<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
 					<path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
 				</svg>
 			</button>
 		</div>
-		{@render children()}
+		{#if open}
+			{@render children()}
+		{/if}
 	</div>
 </dialog>
 

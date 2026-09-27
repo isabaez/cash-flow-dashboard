@@ -171,7 +171,7 @@
 		</div>
 	</aside>
 
-	<main id="main" class="content" inert={menuOpen}>
+	<main id="main" class="content js-focus-fallback" inert={menuOpen}>
 		{@render children()}
 	</main>
 </div>

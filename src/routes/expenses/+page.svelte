@@ -236,6 +236,7 @@
 	<div class="expense-form__grid">
 		<div class="field">
 			<label class="field__label" for="{idPrefix}-title">Title</label>
+			<!-- svelte-ignore a11y_autofocus -- Modal's <dialog> focuses this field when it opens -->
 			<input
 				class="field__input"
 				id="{idPrefix}-title"
@@ -243,6 +244,7 @@
 				required
 				placeholder="e.g. Electric bill"
 				value={expense?.title ?? ''}
+				autofocus
 			/>
 		</div>
 		<div class="field">
@@ -325,21 +327,25 @@
 	{/key}
 </Modal>
 
-<Modal bind:open={showImportModal} title="Import expenses from CSV">
-	<p class="import-hint">
+<Modal bind:open={showImportModal} title="Import expenses from CSV" descriptionId="import-hint">
+	<p class="import-hint" id="import-hint">
 		Upload a CSV with columns <strong>Date, Title, Amount, Categories</strong>. Dates use
 		<code>MM/DD/YYYY</code>. Categories can be blank, one name, or a comma-separated list — wrap a
 		multi-category cell in quotes, e.g. <code>"Groceries, Dining"</code>. Unknown categories are
 		created automatically. Invalid rows are skipped and listed below.
 	</p>
 
-	<div class="import-file">
+	<div class="field">
+		<label class="field__label" for="import-file">CSV file</label>
+		<!-- svelte-ignore a11y_autofocus -- Modal's <dialog> focuses this field when it opens -->
 		<input
 			class="field__input"
+			id="import-file"
 			type="file"
 			accept=".csv,text/csv"
 			disabled={importing}
 			onchange={onImportFileChange}
+			autofocus
 		/>
 	</div>
 
@@ -431,13 +437,13 @@
 	{/key}
 </Modal>
 
-<Modal bind:open={showDuplicateModal} title="Duplicate expense">
+<Modal bind:open={showDuplicateModal} title="Duplicate expense" descriptionId="duplicate-summary">
 	{#if form?.error}
 		<p class="form-error" role="alert">{form.error}</p>
 	{/if}
 	{#key showDuplicateModal}
 	{#if duplicating}
-		<p class="duplicate-hint">
+		<p class="duplicate-hint" id="duplicate-summary">
 			Copies “{duplicating.title}” ({formatCents(duplicating.amountCents)})
 			{#if duplicating.categoryLinks.length > 0}
 				with {duplicating.categoryLinks.length}
@@ -457,12 +463,14 @@
 			<input type="hidden" name="id" value={duplicating.id} />
 			<div class="field">
 				<label class="field__label" for="duplicate-title">Title</label>
+				<!-- svelte-ignore a11y_autofocus -- Modal's <dialog> focuses this field when it opens -->
 				<input
 					class="field__input"
 					id="duplicate-title"
 					name="title"
 					required
 					value={duplicating.title}
+					autofocus
 				/>
 			</div>
 			<div class="field">
@@ -884,10 +892,6 @@
 			padding: 0 var(--space-1);
 			border-radius: 4px;
 		}
-	}
-
-	.import-file {
-		margin-bottom: var(--space-4);
 	}
 
 	.import-status {
