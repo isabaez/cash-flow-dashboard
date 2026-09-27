@@ -18,9 +18,9 @@
 			// nothing and lets the media query in _tokens.scss decide.
 			(function () {
 				try {
-					var t = localStorage.getItem('theme');
-					if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
-				} catch (e) {
+					var storedTheme = localStorage.getItem('theme');
+					if (storedTheme === 'light' || storedTheme === 'dark') document.documentElement.dataset.theme = storedTheme;
+				} catch (error) {
 					/* private mode / storage blocked — fall through to the OS setting */
 				}
 			})();
