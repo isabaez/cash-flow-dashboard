@@ -462,11 +462,18 @@ select.field__input {
 // Page title row with a trailing action button (e.g. "Add …")
 .page-header {
 	display: flex;
-	flex-wrap: wrap; // the actions drop below the title when both don't fit (320px, zoom)
+	flex-wrap: wrap;
 	align-items: center;
 	justify-content: space-between;
 	gap: var(--space-4);
 	margin-bottom: var(--space-5);
+
+	// A zero basis makes the wrap test the title's longest word, not its whole line:
+	// the title wraps first, and the actions drop below it only when they don't fit
+	// beside that word (Expenses at 320px).
+	> :first-child {
+		flex: 1 1 0;
+	}
 
 	h1 {
 		margin-bottom: 0;

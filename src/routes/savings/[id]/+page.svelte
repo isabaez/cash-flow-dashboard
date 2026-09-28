@@ -195,7 +195,7 @@
 							</tr>
 						{:else}
 							<tr>
-								<td>{formatDate(entry.date)}</td>
+								<td class="table__cell--date">{formatDate(entry.date)}</td>
 								<td>
 									<span
 										class="type-badge"

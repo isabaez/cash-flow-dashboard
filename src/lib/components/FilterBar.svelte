@@ -120,8 +120,12 @@
 		&__filter--category {
 			min-width: 240px;
 
+			// At the default `auto` the control can't shrink below its one-line summary of
+			// applied names, which runs past a phone screen; at 0 the summary is cut with
+			// an ellipsis instead.
 			:global(.multi-select) {
 				flex: 1;
+				min-inline-size: 0;
 			}
 		}
 
