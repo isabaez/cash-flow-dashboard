@@ -51,6 +51,16 @@ and each entry says why the change was made.
   back into it without a PR of their own, so review happens once per feature rather than once per sub-branch (#11)
 - `/categories` lists categories as wrapping tags with their expense counts instead of table rows; edit and delete are
   icons that appear on hover or keyboard focus and open modals, per the project's forms-in-modals convention (#12)
+- Body text, including table cells, messages, fund descriptions and filter options, is 16px or larger (it was 15px,
+  and 12–13px in places), and labels, buttons, hints and captions are 14px instead of 13px, since 16px is the floor
+  the project's legibility rule sets and smaller body text is harder to read for low-vision users (#15)
+- Page header buttons and the category forms wrap on a 320px-wide screen, fund card totals wrap in the four-across
+  layout, and the category filter ends its list of applied categories in an ellipsis, so the larger text never runs
+  off the side of the page or a card (#15)
+
+### Fixed
+
+- Dates in a fund's transaction list stay on one line at phone width, as they do on Expenses and Income (#15)
 
 ### Security
 
