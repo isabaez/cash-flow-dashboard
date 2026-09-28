@@ -475,6 +475,13 @@ select.field__input {
 		flex: 1 1 0;
 	}
 
+	// A title column that carries a paragraph (the Savings intro, a fund's description)
+	// keeps at least 20rem, about 40 characters: narrower than that, the actions drop
+	// below it instead of squeezing the text into a sliver (phone widths).
+	> :first-child:has(> p) {
+		min-inline-size: min(100%, 20rem);
+	}
+
 	h1 {
 		margin-bottom: 0;
 	}

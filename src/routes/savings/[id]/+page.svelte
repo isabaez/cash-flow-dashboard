@@ -265,7 +265,8 @@
 	}
 
 	.balance {
-		margin: 0;
+		// Right-aligned, and kept at the right edge when it wraps below a long description.
+		margin: 0 0 0 auto;
 		text-align: right;
 		// Grid/flex siblings shrink below their content otherwise.
 		flex-shrink: 0;
@@ -337,6 +338,8 @@
 		color: var(--neg);
 	}
 
+	// A caption in the actions column, standing in for the row actions (14px, like
+	// .link-action) on entries that are edited on another page.
 	.ledger__hint {
 		color: var(--text-secondary);
 		font-size: var(--text-sm);

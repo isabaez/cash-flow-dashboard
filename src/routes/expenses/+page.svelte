@@ -761,11 +761,14 @@
 			color: var(--text-primary);
 		}
 
+		// min-inline-size: 0, as in FilterBar: at `auto` the group can't shrink below the
+		// picker's one-line summary of ticked categories, which runs past a phone screen.
 		&__group {
 			display: flex;
 			flex-wrap: wrap;
 			align-items: center;
 			gap: var(--space-2);
+			min-inline-size: 0;
 		}
 
 		&__picker {
