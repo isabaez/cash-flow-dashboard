@@ -139,4 +139,4 @@ propose adding it.
   Design feedback loop, worktree setup and Gates text (about 55 lines) are kept word for word.
 - Approved exception: colour maths (`scripts/check-contrast.mjs`, `src/lib/color.ts`) keeps single-letter
   colour-space names (`L`, `C`, `h`, `a`, `b`, `l`, `m`, `s`). The type scale follows the 16px rule since #15: body
-  text is `--text-base` or larger, labels and controls `--text-sm`, column headers and badges `--text-xs`.
+  text and inputs are `--text-base` or larger, labels and controls `--text-sm`, column headers and badges `--text-xs`.
