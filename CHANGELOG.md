@@ -51,6 +51,9 @@ and each entry says why the change was made.
   back into it without a PR of their own, so review happens once per feature rather than once per sub-branch (#11)
 - `/categories` lists categories as wrapping tags with their expense counts instead of table rows; edit and delete are
   icons that appear on hover or keyboard focus and open modals, per the project's forms-in-modals convention (#12)
+- Code written before CLAUDE.md's conventions now follows them, as new code already does: single-letter names are
+  spelled out (the colour maths keeps its colour-space letters), and the period picker and the mobile menu reach
+  their elements through Svelte refs instead of an id lookup and a styling class (#14)
 
 ### Security
 
