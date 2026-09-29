@@ -243,9 +243,9 @@
 			font-size: var(--text-sm);
 		}
 
-		// Label above value rather than a justified row: at 4-up the card is ~230px
-		// wide, where a justified label/value pair wraps into the same two lines
-		// anyway — but unpredictably.
+		// Label above value rather than a justified row: in the narrowest card (15rem)
+		// a justified label/value pair wraps into the same two lines anyway — but
+		// unpredictably.
 		&__mtd {
 			display: flex;
 			flex-direction: column;
@@ -276,9 +276,9 @@
 		}
 
 		// The label gives way first (a zero basis lets it wrap onto two lines); only
-		// when even its longest word and the amount don't fit side by side, as in the
-		// 4-up card at 16px ("Contributions  $21,600.00"), does the amount wrap under
-		// it, still right-aligned.
+		// when even its longest word and the amount don't fit side by side (a
+		// six-figure amount in the narrowest card) does the amount wrap under it,
+		// still right-aligned.
 		&__total {
 			display: flex;
 			flex-wrap: wrap;

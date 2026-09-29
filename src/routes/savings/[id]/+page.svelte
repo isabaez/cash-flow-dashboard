@@ -118,7 +118,7 @@
 		{/if}
 	{:else}
 		<div class="table-scroll" use:scrollable={'Fund transactions table'}>
-			<table class="table">
+			<table class="table table--dense">
 				<caption class="visually-hidden">
 					Movements for {data.fund.name} — {data.periodLabel}
 				</caption>
@@ -293,8 +293,11 @@
 			gap: var(--space-4);
 			flex-wrap: wrap;
 
+			// A card heading, at the size the other card headings use (it defaulted to 1.5em,
+			// as large as the page title).
 			h2 {
 				margin-bottom: var(--space-4);
+				font-size: var(--text-md);
 			}
 		}
 	}

@@ -56,7 +56,8 @@
 		border: 1px solid var(--border-subtle);
 		border-radius: var(--radius-lg);
 		padding: 0;
-		width: min(620px, calc(100vw - var(--space-5) * 2));
+		// The page's own side gutter at phone width, so the actions fit at 320px.
+		width: min(620px, calc(100vw - var(--space-4) * 2));
 		background: var(--surface-1);
 		color: var(--text-primary);
 		box-shadow: var(--shadow-3);

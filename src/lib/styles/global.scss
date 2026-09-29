@@ -274,9 +274,9 @@ textarea.field__input {
 	line-height: 1.5;
 }
 
-// Form errors: `fail(400, { error })` from an action, rendered as
-// <p class="form-error" role="alert">. The left rule and the alert role carry the
-// message as well as the colour does.
+// Error messages: an action's `fail(400, { error })`, rendered as
+// <p class="form-error" role="alert">, and a failed Insights request. The left rule
+// and the alert role carry the message as well as the colour does.
 .form-error {
 	margin: 0 0 var(--space-4);
 	padding: var(--space-3) var(--space-4);
@@ -475,10 +475,10 @@ select.field__input {
 		flex: 1 1 0;
 	}
 
-	// A title column that carries a paragraph (the Savings intro, a fund's description)
-	// keeps at least 20rem, about 40 characters: narrower than that, the actions drop
-	// below it instead of squeezing the text into a sliver (phone widths).
-	> :first-child:has(> p) {
+	// A title column that holds more than the title (the Savings intro, a fund's back
+	// link and description) keeps at least 20rem, about 40 characters: narrower than
+	// that, the actions drop below it instead of squeezing it into a sliver.
+	> :first-child:not(h1) {
 		min-inline-size: min(100%, 20rem);
 	}
 
