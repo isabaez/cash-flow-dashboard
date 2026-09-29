@@ -56,14 +56,14 @@
 		checkedIds.length === 0
 			? placeholder
 			: options
-					.filter((o) => checkedIds.includes(o.id))
-					.map((o) => o.name)
+					.filter((option) => checkedIds.includes(option.id))
+					.map((option) => option.name)
 					.join(', ')
 	);
 
 	function toggle(id: number) {
 		checkedIds = checkedIds.includes(id)
-			? checkedIds.filter((c) => c !== id)
+			? checkedIds.filter((checkedId) => checkedId !== id)
 			: [...checkedIds, id];
 		onChange?.(checkedIds);
 	}

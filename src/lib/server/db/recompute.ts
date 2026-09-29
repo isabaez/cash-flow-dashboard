@@ -20,30 +20,30 @@ export function recomputePaycheck(tx: Tx, paycheckId: number): void {
 		.all();
 	const allocs = tx.select().from(allocations).where(eq(allocations.paycheckId, paycheckId)).all();
 
-	const rules = deductions.map((d) => ({
-		kind: d.kind as Kind,
-		basis: d.basis as Basis,
-		value: d.value
+	const rules = deductions.map((deduction) => ({
+		kind: deduction.kind as Kind,
+		basis: deduction.basis as Basis,
+		value: deduction.value
 	}));
 	const { netCents, resolved } = computeNet(paycheck.grossCents, rules);
 
-	deductions.forEach((d, i) => {
-		if (d.resolvedCents !== resolved[i]) {
+	deductions.forEach((deduction, index) => {
+		if (deduction.resolvedCents !== resolved[index]) {
 			tx.update(paycheckDeductions)
-				.set({ resolvedCents: resolved[i] })
-				.where(eq(paycheckDeductions.id, d.id))
+				.set({ resolvedCents: resolved[index] })
+				.where(eq(paycheckDeductions.id, deduction.id))
 				.run();
 		}
 	});
 
-	for (const a of allocs) {
+	for (const allocation of allocs) {
 		const cents = resolveRule(
-			{ kind: a.kind as Kind, basis: a.basis as Basis, value: a.value },
+			{ kind: allocation.kind as Kind, basis: allocation.basis as Basis, value: allocation.value },
 			paycheck.grossCents,
 			netCents
 		);
-		if (a.resolvedCents !== cents) {
-			tx.update(allocations).set({ resolvedCents: cents }).where(eq(allocations.id, a.id)).run();
+		if (allocation.resolvedCents !== cents) {
+			tx.update(allocations).set({ resolvedCents: cents }).where(eq(allocations.id, allocation.id)).run();
 		}
 	}
 }

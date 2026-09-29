@@ -25,8 +25,8 @@ const DEFAULT_PERIOD: PeriodValue = 'this-year';
 
 /** Month key N months before `month`, e.g. monthsBack('2026-03', 5) -> '2025-10'. */
 function monthsBack(month: string, count: number): string {
-	const [y, m] = month.split('-').map(Number);
-	const total = y * 12 + (m - 1) - count;
+	const [year, monthNumber] = month.split('-').map(Number);
+	const total = year * 12 + (monthNumber - 1) - count;
 	return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
 }
 
@@ -64,7 +64,7 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	if (!fund) error(404, 'Fund not found');
 
 	const requested = url.searchParams.get('period');
-	const period: PeriodValue = PERIODS.some((p) => p.value === requested)
+	const period: PeriodValue = PERIODS.some((option) => option.value === requested)
 		? (requested as PeriodValue)
 		: DEFAULT_PERIOD;
 
@@ -75,7 +75,7 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	// The `initial` entry is the pre-tracking baseline rather than a movement, so
 	// it belongs to no period window — it only shows under "All time".
 	const filtered =
-		floor === null ? ledger : ledger.filter((e) => e.kind !== 'initial' && e.date >= floor);
+		floor === null ? ledger : ledger.filter((entry) => entry.kind !== 'initial' && entry.date >= floor);
 
 	let inCents = 0;
 	let outCents = 0;
@@ -84,9 +84,9 @@ export const load: PageServerLoad = async ({ params, url }) => {
 		else inCents += entry.amountCents;
 	}
 
-	const contributedCents = fund.allocations.reduce((sum, a) => sum + a.resolvedCents, 0);
-	const depositedCents = fund.deposits.reduce((sum, d) => sum + d.amountCents, 0);
-	const withdrawnCents = fund.withdrawals.reduce((sum, w) => sum + w.amountCents, 0);
+	const contributedCents = fund.allocations.reduce((sum, allocation) => sum + allocation.resolvedCents, 0);
+	const depositedCents = fund.deposits.reduce((sum, deposit) => sum + deposit.amountCents, 0);
+	const withdrawnCents = fund.withdrawals.reduce((sum, withdrawal) => sum + withdrawal.amountCents, 0);
 
 	return {
 		fund: {
@@ -104,8 +104,8 @@ export const load: PageServerLoad = async ({ params, url }) => {
 		/** Whether the fund has any movement at all, which distinguishes the two empty states. */
 		hasAnyMovements: ledger.length > 0,
 		period,
-		periodLabel: PERIODS.find((p) => p.value === period)?.label ?? '',
-		periodOptions: PERIODS.map((p) => ({ value: p.value, label: p.label })),
+		periodLabel: PERIODS.find((option) => option.value === period)?.label ?? '',
+		periodOptions: PERIODS.map((option) => ({ value: option.value, label: option.label })),
 		totals: { inCents, outCents, netCents: inCents - outCents },
 		today
 	};

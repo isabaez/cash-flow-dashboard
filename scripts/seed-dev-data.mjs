@@ -36,35 +36,35 @@ const bpsOf = (base, bps) => Math.round((base * bps) / 10000);
 function computeNet(grossCents, deductions) {
 	const resolved = new Array(deductions.length).fill(0);
 	let netBase = grossCents;
-	deductions.forEach((d, i) => {
-		if (d.kind === 'fixed') {
-			resolved[i] = d.value;
-			netBase -= d.value;
-		} else if (d.basis === 'gross') {
-			resolved[i] = bpsOf(grossCents, d.value);
-			netBase -= resolved[i];
+	deductions.forEach((deduction, index) => {
+		if (deduction.kind === 'fixed') {
+			resolved[index] = deduction.value;
+			netBase -= deduction.value;
+		} else if (deduction.basis === 'gross') {
+			resolved[index] = bpsOf(grossCents, deduction.value);
+			netBase -= resolved[index];
 		}
 	});
 	let net = netBase;
-	deductions.forEach((d, i) => {
-		if (d.kind === 'percent' && d.basis === 'net') {
-			resolved[i] = bpsOf(netBase, d.value);
-			net -= resolved[i];
+	deductions.forEach((deduction, index) => {
+		if (deduction.kind === 'percent' && deduction.basis === 'net') {
+			resolved[index] = bpsOf(netBase, deduction.value);
+			net -= resolved[index];
 		}
 	});
 	return { net, resolved };
 }
 
-const iso = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-const lastDay = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+const iso = (year, month, day) => `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+const lastDay = (year, month) => new Date(Date.UTC(year, month, 0)).getUTCDate();
 
 db.exec('BEGIN');
 try {
-	for (const t of [
+	for (const table of [
 		'expense_categories', 'fund_withdrawals', 'fund_deposits', 'expenses',
 		'categories', 'allocations', 'paycheck_deductions', 'paychecks', 'funds'
 	]) {
-		db.prepare(`DELETE FROM ${t}`).run();
+		db.prepare(`DELETE FROM ${table}`).run();
 	}
 
 	// --- funds --------------------------------------------------------------
@@ -122,24 +122,24 @@ try {
 	];
 
 	// 18 months ending with the current month.
-	const END = { y: 2026, m: 9 };
+	const END = { year: 2026, month: 9 };
 	const months = [];
-	for (let i = 17; i >= 0; i--) {
-		const t = END.y * 12 + (END.m - 1) - i;
-		months.push({ y: Math.floor(t / 12), m: (t % 12) + 1 });
+	for (let monthsAgo = 17; monthsAgo >= 0; monthsAgo--) {
+		const totalMonths = END.year * 12 + (END.month - 1) - monthsAgo;
+		months.push({ year: Math.floor(totalMonths / 12), month: (totalMonths % 12) + 1 });
 	}
 
-	for (const { y, m } of months) {
-		for (const day of [15, lastDay(y, m)]) {
+	for (const { year, month } of months) {
+		for (const day of [15, lastDay(year, month)]) {
 			for (const earner of EARNERS) {
 				// Small variance so the charts are not perfectly flat lines.
 				const gross = earner.gross + between(-9_000, 14_000);
-				const payId = insPay.run(iso(y, m, day), earner.title, gross, earner.owner, null)
+				const payId = insPay.run(iso(year, month, day), earner.title, gross, earner.owner, null)
 					.lastInsertRowid;
 
 				const { net, resolved } = computeNet(gross, DEDUCTIONS);
-				DEDUCTIONS.forEach((d, i) =>
-					insDed.run(payId, d.title, d.kind, d.basis, d.value, resolved[i])
+				DEDUCTIONS.forEach((deduction, index) =>
+					insDed.run(payId, deduction.title, deduction.kind, deduction.basis, deduction.value, resolved[index])
 				);
 
 				const allocs = [
@@ -148,10 +148,10 @@ try {
 					{ fund: 'Wedding Fund', kind: 'fixed', basis: 'net', value: 30_000 },
 					{ fund: 'BTC Fund', kind: 'percent', basis: 'net', value: 200 }
 				];
-				for (const a of allocs) {
+				for (const allocation of allocs) {
 					const cents =
-						a.kind === 'fixed' ? a.value : bpsOf(a.basis === 'gross' ? gross : net, a.value);
-					insAlloc.run(payId, fundId[a.fund], a.kind, a.basis, a.value, cents);
+						allocation.kind === 'fixed' ? allocation.value : bpsOf(allocation.basis === 'gross' ? gross : net, allocation.value);
+					insAlloc.run(payId, fundId[allocation.fund], allocation.kind, allocation.basis, allocation.value, cents);
 				}
 			}
 		}
@@ -186,24 +186,24 @@ try {
 	);
 
 	let expenseCount = 0;
-	for (const { y, m } of months) {
+	for (const { year, month } of months) {
 		for (const [title, cat, cents, day] of RECURRING) {
-			const id = insExp.run(title, cents + between(-400, 900), iso(y, m, Math.min(day, lastDay(y, m))), null)
+			const id = insExp.run(title, cents + between(-400, 900), iso(year, month, Math.min(day, lastDay(year, month))), null)
 				.lastInsertRowid;
 			insLink.run(id, catId[cat]);
 			expenseCount++;
 		}
-		for (let i = 0; i < between(16, 26); i++) {
+		for (let index = 0; index < between(16, 26); index++) {
 			const [title, cats, lo, hi] = pick(VARIABLE);
-			const day = between(1, lastDay(y, m));
-			const id = insExp.run(title, between(lo, hi), iso(y, m, day), null).lastInsertRowid;
-			for (const c of cats) insLink.run(id, catId[c]);
+			const day = between(1, lastDay(year, month));
+			const id = insExp.run(title, between(lo, hi), iso(year, month, day), null).lastInsertRowid;
+			for (const category of cats) insLink.run(id, catId[category]);
 			expenseCount++;
 			// A few large expenses are paid straight out of the shared fund, which also
 			// records a mirrored withdrawal — exercises the linked-ledger path.
 			if (title === 'Weekend trip' && rand() < 0.5) {
 				const amount = db.prepare('SELECT amount_cents AS a FROM expenses WHERE id = ?').get(id).a;
-				insWd.run(fundId['Shared Expenses Fund'], amount, iso(y, m, day), null, id);
+				insWd.run(fundId['Shared Expenses Fund'], amount, iso(year, month, day), null, id);
 			}
 		}
 	}
@@ -212,21 +212,21 @@ try {
 	const insDep = db.prepare(
 		'INSERT INTO fund_deposits (fund_id, amount_cents, date, notes) VALUES (?,?,?,?)'
 	);
-	for (const { y, m } of months) {
-		if (rand() < 0.45) insDep.run(fundId['Gold Fund'], between(15_000, 60_000), iso(y, m, between(3, 26)), 'Monthly metals buy');
-		if (rand() < 0.3) insDep.run(fundId['Silver Fund'], between(8_000, 30_000), iso(y, m, between(3, 26)), null);
-		if (rand() < 0.25) insDep.run(fundId['Wedding Fund'], between(50_000, 180_000), iso(y, m, between(3, 26)), 'Gift / bonus');
+	for (const { year, month } of months) {
+		if (rand() < 0.45) insDep.run(fundId['Gold Fund'], between(15_000, 60_000), iso(year, month, between(3, 26)), 'Monthly metals buy');
+		if (rand() < 0.3) insDep.run(fundId['Silver Fund'], between(8_000, 30_000), iso(year, month, between(3, 26)), null);
+		if (rand() < 0.25) insDep.run(fundId['Wedding Fund'], between(50_000, 180_000), iso(year, month, between(3, 26)), 'Gift / bonus');
 		if (rand() < 0.15) {
-			insWd.run(fundId['Shared Expenses Fund'], between(40_000, 120_000), iso(y, m, between(3, 26)), 'Quarterly true-up', null);
+			insWd.run(fundId['Shared Expenses Fund'], between(40_000, 120_000), iso(year, month, between(3, 26)), 'Quarterly true-up', null);
 		}
 	}
 
 	db.exec('COMMIT');
-	const n = (t) => db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get().n;
+	const countRows = (table) => db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n;
 	console.log(
-		`Seeded ${months.length} months: ${n('paychecks')} paychecks, ${n('paycheck_deductions')} deductions, ` +
-			`${n('allocations')} allocations, ${expenseCount} expenses, ${n('categories')} categories, ` +
-			`${n('funds')} funds, ${n('fund_deposits')} deposits, ${n('fund_withdrawals')} withdrawals.`
+		`Seeded ${months.length} months: ${countRows('paychecks')} paychecks, ${countRows('paycheck_deductions')} deductions, ` +
+			`${countRows('allocations')} allocations, ${expenseCount} expenses, ${countRows('categories')} categories, ` +
+			`${countRows('funds')} funds, ${countRows('fund_deposits')} deposits, ${countRows('fund_withdrawals')} withdrawals.`
 	);
 } catch (error) {
 	db.exec('ROLLBACK');

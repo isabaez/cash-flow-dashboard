@@ -39,8 +39,8 @@
 	];
 
 	function monthLabel(value: string): string {
-		const [y, m] = value.split('-');
-		return `${MONTH_NAMES[Number(m) - 1] ?? m} ${y}`;
+		const [yearPart, monthPart] = value.split('-');
+		return `${MONTH_NAMES[Number(monthPart) - 1] ?? monthPart} ${yearPart}`;
 	}
 
 	/** Set/clear URL params and navigate; empty string clears a param. */
@@ -61,11 +61,11 @@
 		<select
 			class="field__input"
 			value={month ?? ''}
-			onchange={(e) => apply({ month: e.currentTarget.value, year: '' })}
+			onchange={(event) => apply({ month: event.currentTarget.value, year: '' })}
 		>
 			<option value="">All</option>
-			{#each months as m}
-				<option value={m}>{monthLabel(m)}</option>
+			{#each months as monthOption}
+				<option value={monthOption}>{monthLabel(monthOption)}</option>
 			{/each}
 		</select>
 	</label>
@@ -75,11 +75,11 @@
 		<select
 			class="field__input"
 			value={year ?? ''}
-			onchange={(e) => apply({ year: e.currentTarget.value, month: '' })}
+			onchange={(event) => apply({ year: event.currentTarget.value, month: '' })}
 		>
 			<option value="">All</option>
-			{#each years as y}
-				<option value={y}>{y}</option>
+			{#each years as yearOption}
+				<option value={yearOption}>{yearOption}</option>
 			{/each}
 		</select>
 	</label>

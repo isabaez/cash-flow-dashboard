@@ -25,21 +25,21 @@ export function computeNet(
 	const resolved = new Array<number>(deductions.length).fill(0);
 
 	let netBaseCents = grossCents;
-	deductions.forEach((d, i) => {
-		if (d.kind === 'fixed') {
-			resolved[i] = d.value;
-			netBaseCents -= d.value;
-		} else if (d.basis === 'gross') {
-			resolved[i] = bpsOf(grossCents, d.value);
-			netBaseCents -= resolved[i];
+	deductions.forEach((deduction, index) => {
+		if (deduction.kind === 'fixed') {
+			resolved[index] = deduction.value;
+			netBaseCents -= deduction.value;
+		} else if (deduction.basis === 'gross') {
+			resolved[index] = bpsOf(grossCents, deduction.value);
+			netBaseCents -= resolved[index];
 		}
 	});
 
 	let netCents = netBaseCents;
-	deductions.forEach((d, i) => {
-		if (d.kind === 'percent' && d.basis === 'net') {
-			resolved[i] = bpsOf(netBaseCents, d.value);
-			netCents -= resolved[i];
+	deductions.forEach((deduction, index) => {
+		if (deduction.kind === 'percent' && deduction.basis === 'net') {
+			resolved[index] = bpsOf(netBaseCents, deduction.value);
+			netCents -= resolved[index];
 		}
 	});
 

@@ -29,9 +29,9 @@ export const load: PageServerLoad = async ({ url }) => {
 		db.query.paychecks.findMany({
 			with: { deductions: true, allocations: { with: { fund: true } } },
 			where,
-			orderBy: (p, { desc: d }) => [d(p.date), d(p.id)]
+			orderBy: (paycheck, { desc: descending }) => [descending(paycheck.date), descending(paycheck.id)]
 		}),
-		db.query.funds.findMany({ orderBy: (f, { asc }) => [asc(f.name)] }),
+		db.query.funds.findMany({ orderBy: (fund, { asc }) => [asc(fund.name)] }),
 		db.selectDistinct({ month: monthCol }).from(paychecks).orderBy(desc(monthCol)),
 		db.selectDistinct({ year: yearCol }).from(paychecks).orderBy(desc(yearCol))
 	]);
@@ -40,8 +40,8 @@ export const load: PageServerLoad = async ({ url }) => {
 	return {
 		paychecks: paycheckRows,
 		funds: fundRows,
-		availableMonths: monthRows.map((r) => r.month),
-		availableYears: yearRows.map((r) => r.year),
+		availableMonths: monthRows.map((row) => row.month),
+		availableYears: yearRows.map((row) => row.year),
 		filters: { month, year },
 		today
 	};
@@ -267,13 +267,13 @@ export const actions: Actions = {
 			if (source.deductions.length > 0) {
 				tx.insert(paycheckDeductions)
 					.values(
-						source.deductions.map((d) => ({
+						source.deductions.map((deduction) => ({
 							paycheckId,
-							title: d.title,
-							kind: d.kind,
-							basis: d.basis,
-							value: d.value,
-							resolvedCents: d.resolvedCents
+							title: deduction.title,
+							kind: deduction.kind,
+							basis: deduction.basis,
+							value: deduction.value,
+							resolvedCents: deduction.resolvedCents
 						}))
 					)
 					.run();
@@ -281,13 +281,13 @@ export const actions: Actions = {
 			if (source.allocations.length > 0) {
 				tx.insert(allocations)
 					.values(
-						source.allocations.map((a) => ({
+						source.allocations.map((allocation) => ({
 							paycheckId,
-							fundId: a.fundId,
-							kind: a.kind,
-							basis: a.basis,
-							value: a.value,
-							resolvedCents: a.resolvedCents
+							fundId: allocation.fundId,
+							kind: allocation.kind,
+							basis: allocation.basis,
+							value: allocation.value,
+							resolvedCents: allocation.resolvedCents
 						}))
 					)
 					.run();

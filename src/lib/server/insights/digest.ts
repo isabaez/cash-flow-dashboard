@@ -117,13 +117,13 @@ export async function buildDigest(): Promise<SpendingDigest> {
 			.from(paychecks)
 	]);
 
-	const mins = [expBounds[0]?.min, pcBounds[0]?.min].filter((v): v is string => !!v);
+	const mins = [expBounds[0]?.min, pcBounds[0]?.min].filter((month): month is string => !!month);
 	if (mins.length === 0) return EMPTY_DIGEST;
 
-	const windowStart = mins.reduce((a, b) => (a < b ? a : b));
+	const windowStart = mins.reduce((earliest, month) => (earliest < month ? earliest : month));
 	const windowEnd = [expBounds[0]?.max, pcBounds[0]?.max, currentMonth]
-		.filter((v): v is string => !!v)
-		.reduce((a, b) => (a > b ? a : b));
+		.filter((month): month is string => !!month)
+		.reduce((newest, month) => (newest > month ? newest : month));
 
 	const [grossRows, deductionRows, expenseRows, catByMonthRows, uncatByMonthRows, topExpenseRows] =
 		await Promise.all([
@@ -175,14 +175,14 @@ export async function buildDigest(): Promise<SpendingDigest> {
 			db.query.expenses.findMany({
 				with: { categoryLinks: { with: { category: true } } },
 				where: gte(sql`substr(${expenses.date}, 1, 7)`, windowStart),
-				orderBy: (e, { desc }) => [desc(e.amountCents), desc(e.date)],
+				orderBy: (expense, { desc }) => [desc(expense.amountCents), desc(expense.date)],
 				limit: TOP_EXPENSE_LIMIT
 			})
 		]);
 
-	const grossByMonth = new Map(grossRows.map((r) => [r.month, r.cents]));
-	const deductionsByMonth = new Map(deductionRows.map((r) => [r.month, r.cents]));
-	const expensesByMonth = new Map(expenseRows.map((r) => [r.month, r.cents]));
+	const grossByMonth = new Map(grossRows.map((row) => [row.month, row.cents]));
+	const deductionsByMonth = new Map(deductionRows.map((row) => [row.month, row.cents]));
+	const expensesByMonth = new Map(expenseRows.map((row) => [row.month, row.cents]));
 
 	// Contiguous month axis across the whole window (fills gaps with zeros).
 	const monthKeys = monthRange(windowStart, windowEnd);
@@ -210,8 +210,8 @@ export async function buildDigest(): Promise<SpendingDigest> {
 		const inner = catByMonth.get(month)!;
 		inner.set(name, (inner.get(name) ?? 0) + cents);
 	};
-	for (const r of catByMonthRows) addCat(r.month, r.name, r.cents);
-	for (const r of uncatByMonthRows) if (r.cents) addCat(r.month, UNCATEGORIZED, r.cents);
+	for (const row of catByMonthRows) addCat(row.month, row.name, row.cents);
+	for (const row of uncatByMonthRows) if (row.cents) addCat(row.month, UNCATEGORIZED, row.cents);
 
 	// Window-wide category totals, largest first.
 	const windowTotals = new Map<string, number>();
@@ -220,11 +220,11 @@ export async function buildDigest(): Promise<SpendingDigest> {
 	}
 	const categoryWindow: CategoryStat[] = [...windowTotals.entries()]
 		.map(([name, cents]) => ({ name, cents }))
-		.sort((a, b) => b.cents - a.cents);
+		.sort((left, right) => right.cents - left.cents);
 
 	// Latest / prior *complete* months (exclude the current partial month) for the
 	// month-over-month comparison and the single-month category breakdown.
-	const completeMonths = monthKeys.filter((m) => m !== currentMonth);
+	const completeMonths = monthKeys.filter((month) => month !== currentMonth);
 	const latest = completeMonths.at(-1) ?? null;
 	const prior = completeMonths.at(-2) ?? null;
 
@@ -234,7 +234,7 @@ export async function buildDigest(): Promise<SpendingDigest> {
 				label: monthLabel(latest),
 				categories: [...(catByMonth.get(latest) ?? new Map<string, number>()).entries()]
 					.map(([name, cents]) => ({ name, cents }))
-					.sort((a, b) => b.cents - a.cents)
+					.sort((left, right) => right.cents - left.cents)
 			}
 		: null;
 
@@ -249,7 +249,7 @@ export async function buildDigest(): Promise<SpendingDigest> {
 				const priorCents = priorCats.get(name) ?? 0;
 				return { name, latestCents, priorCents, deltaCents: latestCents - priorCents };
 			})
-			.sort((a, b) => Math.abs(b.deltaCents) - Math.abs(a.deltaCents));
+			.sort((left, right) => Math.abs(right.deltaCents) - Math.abs(left.deltaCents));
 		momDelta = {
 			latest,
 			prior,
@@ -259,24 +259,24 @@ export async function buildDigest(): Promise<SpendingDigest> {
 	}
 
 	// Averages over complete months only (the partial month would drag them down).
-	const completeStats = monthStats.filter((s) => !s.partial);
+	const completeStats = monthStats.filter((stat) => !stat.partial);
 	const avgMonthlyExpensesCents = completeStats.length
-		? Math.round(completeStats.reduce((sum, s) => sum + s.expensesCents, 0) / completeStats.length)
+		? Math.round(completeStats.reduce((sum, stat) => sum + stat.expensesCents, 0) / completeStats.length)
 		: 0;
-	const savingsSamples = completeStats.map((s) => s.savingsRate).filter((r): r is number => r !== null);
+	const savingsSamples = completeStats.map((stat) => stat.savingsRate).filter((rate): rate is number => rate !== null);
 	const avgSavingsRate = savingsSamples.length
-		? savingsSamples.reduce((sum, r) => sum + r, 0) / savingsSamples.length
+		? savingsSamples.reduce((sum, rate) => sum + rate, 0) / savingsSamples.length
 		: null;
 
-	const topExpenses: TopExpense[] = topExpenseRows.map((e) => ({
-		title: e.title,
-		cents: e.amountCents,
-		date: e.date,
-		categories: e.categoryLinks.map((l) => l.category.name)
+	const topExpenses: TopExpense[] = topExpenseRows.map((expense) => ({
+		title: expense.title,
+		cents: expense.amountCents,
+		date: expense.date,
+		categories: expense.categoryLinks.map((link) => link.category.name)
 	}));
 
 	const hasData =
-		monthStats.some((s) => s.expensesCents !== 0 || s.netIncomeCents !== 0) ||
+		monthStats.some((stat) => stat.expensesCents !== 0 || stat.netIncomeCents !== 0) ||
 		categoryWindow.length > 0;
 
 	return {
@@ -294,7 +294,7 @@ export async function buildDigest(): Promise<SpendingDigest> {
 	};
 }
 
-const pct = (v: number | null) => (v === null ? 'n/a' : `${v.toFixed(1)}%`);
+const pct = (rate: number | null) => (rate === null ? 'n/a' : `${rate.toFixed(1)}%`);
 const signedCents = (cents: number) =>
 	`${cents >= 0 ? '+' : '−'}${formatCents(Math.abs(cents))}`;
 
@@ -302,56 +302,56 @@ const signedCents = (cents: number) =>
  * Render a digest as compact, labeled plain text with dollar amounts — the exact
  * material the model is allowed to reason from.
  */
-export function digestToPrompt(d: SpendingDigest): string {
+export function digestToPrompt(digest: SpendingDigest): string {
 	const lines: string[] = [];
 	lines.push(
-		`Spending digest — all recorded data, ${d.windowMonths} month(s) (${monthLabel(d.windowStart)} to ${monthLabel(d.windowEnd)}).`
+		`Spending digest — all recorded data, ${digest.windowMonths} month(s) (${monthLabel(digest.windowStart)} to ${monthLabel(digest.windowEnd)}).`
 	);
-	lines.push(`The most recent month (${monthLabel(d.windowEnd)}) is still in progress; its totals are partial.`);
+	lines.push(`The most recent month (${monthLabel(digest.windowEnd)}) is still in progress; its totals are partial.`);
 	lines.push('');
 
 	lines.push('Per-month net income, expenses, and savings rate:');
-	for (const s of d.months) {
+	for (const stat of digest.months) {
 		lines.push(
-			`- ${s.label}${s.partial ? ' (partial)' : ''}: net income ${formatCents(s.netIncomeCents)}, expenses ${formatCents(s.expensesCents)}, savings rate ${pct(s.savingsRate)}`
+			`- ${stat.label}${stat.partial ? ' (partial)' : ''}: net income ${formatCents(stat.netIncomeCents)}, expenses ${formatCents(stat.expensesCents)}, savings rate ${pct(stat.savingsRate)}`
 		);
 	}
 	lines.push('');
 
 	lines.push(
-		`Averages over complete months: monthly expenses ${formatCents(d.avgMonthlyExpensesCents)}, savings rate ${pct(d.avgSavingsRate)}.`
+		`Averages over complete months: monthly expenses ${formatCents(digest.avgMonthlyExpensesCents)}, savings rate ${pct(digest.avgSavingsRate)}.`
 	);
 	lines.push('');
 
-	if (d.categoryWindow.length) {
+	if (digest.categoryWindow.length) {
 		lines.push('Spending by category over the whole window (largest first):');
-		for (const c of d.categoryWindow) lines.push(`- ${c.name}: ${formatCents(c.cents)}`);
+		for (const category of digest.categoryWindow) lines.push(`- ${category.name}: ${formatCents(category.cents)}`);
 		lines.push('');
 	}
 
-	if (d.categoryLatestMonth?.categories.length) {
-		lines.push(`Spending by category in ${d.categoryLatestMonth.label} (latest complete month):`);
-		for (const c of d.categoryLatestMonth.categories) lines.push(`- ${c.name}: ${formatCents(c.cents)}`);
+	if (digest.categoryLatestMonth?.categories.length) {
+		lines.push(`Spending by category in ${digest.categoryLatestMonth.label} (latest complete month):`);
+		for (const category of digest.categoryLatestMonth.categories) lines.push(`- ${category.name}: ${formatCents(category.cents)}`);
 		lines.push('');
 	}
 
-	if (d.momDelta) {
+	if (digest.momDelta) {
 		lines.push(
-			`Month-over-month change (${monthLabel(d.momDelta.prior)} → ${monthLabel(d.momDelta.latest)}): total expenses ${signedCents(d.momDelta.expensesDeltaCents)}.`
+			`Month-over-month change (${monthLabel(digest.momDelta.prior)} → ${monthLabel(digest.momDelta.latest)}): total expenses ${signedCents(digest.momDelta.expensesDeltaCents)}.`
 		);
-		const movers = d.momDelta.perCategory.filter((c) => c.deltaCents !== 0).slice(0, 6);
+		const movers = digest.momDelta.perCategory.filter((category) => category.deltaCents !== 0).slice(0, 6);
 		if (movers.length) {
 			lines.push('Biggest category movers:');
-			for (const c of movers) lines.push(`- ${c.name}: ${signedCents(c.deltaCents)}`);
+			for (const mover of movers) lines.push(`- ${mover.name}: ${signedCents(mover.deltaCents)}`);
 		}
 		lines.push('');
 	}
 
-	if (d.topExpenses.length) {
+	if (digest.topExpenses.length) {
 		lines.push('Largest individual expenses in the window:');
-		for (const e of d.topExpenses) {
-			const cats = e.categories.length ? ` [${e.categories.join(', ')}]` : '';
-			lines.push(`- ${e.date} ${e.title}: ${formatCents(e.cents)}${cats}`);
+		for (const expense of digest.topExpenses) {
+			const cats = expense.categories.length ? ` [${expense.categories.join(', ')}]` : '';
+			lines.push(`- ${expense.date} ${expense.title}: ${formatCents(expense.cents)}${cats}`);
 		}
 		lines.push('');
 	}
