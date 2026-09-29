@@ -559,7 +559,7 @@
 		</div>
 	{:else}
 		<div class="table-scroll" use:scrollable={'Expenses table'}>
-		<table class="table">
+		<table class="table table--dense">
 			<caption class="visually-hidden">
 				{data.expenses.length} expenses, newest first. Each row can be selected for bulk tagging,
 				and rows with notes or a linked fund withdrawal can be expanded for detail.

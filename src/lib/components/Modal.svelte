@@ -56,8 +56,10 @@
 		border: 1px solid var(--border-subtle);
 		border-radius: var(--radius-lg);
 		padding: 0;
-		// The page's own side gutter at phone width, so the actions fit at 320px.
-		width: min(620px, calc(100vw - var(--space-4) * 2));
+		// The page's own side gutter at phone width, so the actions fit at 320px. `none`
+		// lifts the browser's cap on modal dialogs (100% − 38px), which would otherwise win.
+		width: min(620px, calc(100% - var(--space-4) * 2));
+		max-inline-size: none;
 		background: var(--surface-1);
 		color: var(--text-primary);
 		box-shadow: var(--shadow-3);
