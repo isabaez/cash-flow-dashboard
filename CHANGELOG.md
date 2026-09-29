@@ -54,13 +54,17 @@ and each entry says why the change was made.
 - Body text, including table cells, messages, fund descriptions and filter options, is 16px or larger (it was 15px,
   and 12–13px in places), and labels, buttons, hints and captions are 14px instead of 13px, since 16px is the floor
   the project's legibility rule sets and smaller body text is harder to read for low-vision users (#15)
-- Page header buttons and the category forms wrap on a 320px-wide screen, fund card totals wrap in the four-across
-  layout, and the category filter ends its list of applied categories in an ellipsis, so the larger text never runs
-  off the side of the page or a card (#15)
+- On a 320px-wide screen, page header actions drop below the title, the category forms wrap, and the category
+  pickers end their list of applied categories in an ellipsis, so the larger text neither runs off the side of the
+  page nor gets squeezed beside a button (#15)
+- Fund cards on Savings & Net Worth fit as many across as there is room for at 15rem each, instead of four from
+  1024px, so the larger totals and balances are no longer squeezed into 170px cards when the sidebar is open (#15)
 
 ### Fixed
 
 - Dates in a fund's transaction list stay on one line at phone width, as they do on Expenses and Income (#15)
+- The Transactions heading on a fund's page is sized like the other card headings instead of as large as the page
+  title (#15)
 
 ### Security
 
