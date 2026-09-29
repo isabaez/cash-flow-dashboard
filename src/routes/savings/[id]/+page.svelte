@@ -118,7 +118,7 @@
 		{/if}
 	{:else}
 		<div class="table-scroll" use:scrollable={'Fund transactions table'}>
-			<table class="table">
+			<table class="table table--dense">
 				<caption class="visually-hidden">
 					Movements for {data.fund.name} — {data.periodLabel}
 				</caption>
@@ -195,7 +195,7 @@
 							</tr>
 						{:else}
 							<tr>
-								<td>{formatDate(entry.date)}</td>
+								<td class="table__cell--date">{formatDate(entry.date)}</td>
 								<td>
 									<span
 										class="type-badge"
@@ -265,7 +265,8 @@
 	}
 
 	.balance {
-		margin: 0;
+		// Right-aligned, and kept at the right edge when it wraps below a long description.
+		margin: 0 0 0 auto;
 		text-align: right;
 		// Grid/flex siblings shrink below their content otherwise.
 		flex-shrink: 0;
@@ -292,8 +293,11 @@
 			gap: var(--space-4);
 			flex-wrap: wrap;
 
+			// A card heading, at the size the other card headings use (it defaulted to 1.5em,
+			// as large as the page title).
 			h2 {
 				margin-bottom: var(--space-4);
+				font-size: var(--text-md);
 			}
 		}
 	}
@@ -337,6 +341,8 @@
 		color: var(--neg);
 	}
 
+	// A caption in the actions column, standing in for the row actions (14px, like
+	// .link-action) on entries that are edited on another page.
 	.ledger__hint {
 		color: var(--text-secondary);
 		font-size: var(--text-sm);
@@ -375,17 +381,6 @@
 		align-items: center;
 		justify-content: flex-end;
 		gap: var(--space-2);
-	}
-
-	.form-error {
-		margin: 0 0 var(--space-4);
-		padding: var(--space-3) var(--space-4);
-		border: 1px solid color-mix(in oklab, var(--neg) 40%, transparent);
-		border-left: 3px solid var(--neg);
-		border-radius: var(--radius-md);
-		background: var(--neg-soft);
-		color: var(--text-primary);
-		font-size: var(--text-sm);
 	}
 
 	.movement-form {

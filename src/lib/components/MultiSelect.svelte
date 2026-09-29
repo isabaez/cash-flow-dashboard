@@ -194,7 +194,6 @@
 		&__search {
 			width: 100%;
 			margin-bottom: var(--space-2);
-			font-size: var(--text-sm);
 		}
 
 		&__option {
@@ -203,7 +202,7 @@
 			gap: var(--space-2);
 			padding: var(--space-1) var(--space-2);
 			border-radius: 6px;
-			font-size: var(--text-sm);
+			font-size: var(--text-base);
 			cursor: pointer;
 
 			&:hover {
@@ -219,7 +218,7 @@
 			margin: 0;
 			padding: var(--space-1) var(--space-2);
 			color: var(--text-secondary);
-			font-size: var(--text-sm);
+			font-size: var(--text-base);
 		}
 	}
 </style>

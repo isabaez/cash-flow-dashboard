@@ -53,7 +53,7 @@
 
 		&__description {
 			margin: var(--space-1) 0 var(--space-4);
-			font-size: var(--text-sm);
+			font-size: var(--text-base);
 			color: var(--text-secondary);
 			max-width: 74ch;
 		}

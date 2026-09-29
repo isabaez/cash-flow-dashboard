@@ -112,7 +112,7 @@
 		{/if}
 
 		{#if section.status === 'error'}
-			<div class="insights__error" role="alert"><p>{section.errorHint}</p></div>
+			<div class="form-error insights__error" role="alert"><p>{section.errorHint}</p></div>
 		{/if}
 
 		{#if section.output}
@@ -170,7 +170,7 @@
 	.insights-intro {
 		margin: 0 0 var(--space-5);
 		color: var(--text-secondary);
-		font-size: var(--text-sm);
+		font-size: var(--text-base);
 		max-width: 70ch;
 	}
 
@@ -189,25 +189,19 @@
 		&__blurb {
 			margin: 0 0 var(--space-4);
 			color: var(--text-secondary);
-			font-size: var(--text-sm);
+			font-size: var(--text-base);
 			max-width: 70ch;
 		}
 
 		&__status {
 			margin: var(--space-5) 0 0;
 			color: var(--text-secondary);
-			font-size: var(--text-sm);
+			font-size: var(--text-base);
 		}
 
+		// The shared .form-error block, spaced from the controls above it.
 		&__error {
-			margin-top: var(--space-5);
-			padding: var(--space-3) var(--space-4);
-			border: 1px solid color-mix(in oklab, var(--neg) 40%, transparent);
-			border-left: 3px solid var(--neg);
-			border-radius: var(--radius-md);
-			background: var(--neg-soft);
-			color: var(--text-primary);
-			font-size: var(--text-sm);
+			margin: var(--space-5) 0 0;
 
 			p {
 				margin: 0;

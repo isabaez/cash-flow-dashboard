@@ -72,7 +72,7 @@
 		gap: var(--space-1);
 		padding: 0.1rem var(--space-2);
 		border-radius: var(--radius-full);
-		font-size: var(--text-xs);
+		font-size: var(--text-sm);
 		font-weight: 500;
 		white-space: nowrap;
 		color: var(--tag-ink);
@@ -82,7 +82,7 @@
 		&--md {
 			padding: var(--space-1) var(--space-3);
 			min-height: var(--target-min);
-			font-size: var(--text-sm);
+			font-size: var(--text-base);
 		}
 
 		// Set apart by a rule and a lighter weight, not by dimming: the ink is only

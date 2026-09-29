@@ -254,7 +254,7 @@
 			min-height: var(--target-min);
 			padding: var(--space-1) var(--space-2);
 			border-radius: 6px;
-			font-size: var(--text-sm);
+			font-size: var(--text-base);
 			white-space: nowrap;
 			cursor: pointer;
 

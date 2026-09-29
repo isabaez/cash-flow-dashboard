@@ -198,7 +198,7 @@
 
 		&__name {
 			margin: 0;
-			font-size: var(--text-base);
+			font-size: var(--text-md);
 			font-weight: 600;
 			line-height: 1.3;
 			// Long names wrap rather than overflow. `break-word`, not `anywhere`:
@@ -223,8 +223,8 @@
 			flex-basis: 100%;
 			margin: 0;
 			color: var(--text-tertiary);
-			font-size: var(--text-xs);
-			line-height: 1.4;
+			font-size: var(--text-base);
+			line-height: 1.5;
 			overflow-wrap: break-word;
 		}
 
@@ -243,9 +243,9 @@
 			font-size: var(--text-sm);
 		}
 
-		// Label above value rather than a justified row: at 4-up the card is ~230px
-		// wide, where a justified label/value pair wraps into the same two lines
-		// anyway — but unpredictably.
+		// Label above value rather than a justified row: in the narrowest card (15rem)
+		// a justified label/value pair wraps into the same two lines anyway — but
+		// unpredictably.
 		&__mtd {
 			display: flex;
 			flex-direction: column;
@@ -275,20 +275,28 @@
 			color: var(--text-secondary);
 		}
 
+		// The label gives way first (a zero basis lets it wrap onto two lines); only
+		// when even its longest word and the amount don't fit side by side (a
+		// six-figure amount in the narrowest card) does the amount wrap under it,
+		// still right-aligned.
 		&__total {
 			display: flex;
+			flex-wrap: wrap;
 			align-items: baseline;
 			justify-content: space-between;
-			gap: var(--space-2);
+			gap: 0 var(--space-2);
 			min-inline-size: 0;
 
 			dt {
+				flex: 1 1 0;
 				overflow-wrap: break-word;
 			}
 
+			// The amounts are body text; the row labels stay at the label size.
 			dd {
-				margin: 0;
+				margin: 0 0 0 auto;
 				color: var(--text-primary);
+				font-size: var(--text-base);
 			}
 		}
 

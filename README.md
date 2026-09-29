@@ -77,8 +77,9 @@ docker-compose.yml   the app plus an Ollama sidecar; Dockerfile and docker-entry
 - **Percentages** (deductions, allocations) are stored as basis points: `650` = 6.5%.
 - **Dates** are ISO strings (`YYYY-MM-DD`).
 - **Styling**: SCSS with BEM, light and dark themes. Design tokens are CSS custom properties in
-  `src/lib/styles/_tokens.scss`, used directly as `var(--surface-1)`; shared blocks (`.button`,
-  `.card`, `.field`, `.table`) are in `global.scss`. Breakpoints stay Sass: components write
+  `src/lib/styles/_tokens.scss`, used directly as `var(--surface-1)`; body text is 16px
+  (`--text-base`) and labels 14px (`--text-sm`); shared blocks (`.button`, `.card`, `.field`,
+  `.table`, `.form-error`) are in `global.scss`. Breakpoints stay Sass: components write
   `@use 'breakpoints' as *;` (resolved via `loadPaths` in `vite.config.ts`).
 - **Forms** open in the shared `Modal.svelte` (native `<dialog>`: Escape closes, focus is
   contained). Filtering is URL-param driven (`?month=YYYY-MM`, `?year=YYYY`, `?category=N`)

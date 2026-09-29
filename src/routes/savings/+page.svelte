@@ -336,12 +336,10 @@
 </div>
 
 <style lang="scss">
-	@use 'breakpoints' as *;
-
 	.explainer {
 		margin: var(--space-1) 0 0;
 		color: var(--text-secondary);
-		font-size: var(--text-sm);
+		font-size: var(--text-base);
 		max-width: 72ch;
 	}
 
@@ -356,20 +354,14 @@
 		margin-bottom: var(--space-4);
 	}
 
-	// `minmax(0, 1fr)` rather than `1fr`: grid items default to `min-width: auto`,
-	// so a card holding a long fund name refuses to shrink and overflows its track.
+	// As many 15rem columns as fit, like the .stats tiles: four columns from 1024px put
+	// 170px cards side by side when the sidebar is open, too narrow for the totals and
+	// the balance. The track minimum is a length, not `auto`, so a long fund name can't
+	// widen its track either.
 	.fund-grid {
 		display: grid;
 		gap: var(--space-4);
-		grid-template-columns: 1fr;
-
-		@media (min-width: $breakpoint-md) {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
-
-		@media (min-width: $breakpoint-lg) {
-			grid-template-columns: repeat(4, minmax(0, 1fr));
-		}
+		grid-template-columns: repeat(auto-fill, minmax(min(15rem, 100%), 1fr));
 	}
 
 	.checkbox {
@@ -402,18 +394,5 @@
 			justify-content: flex-end;
 			gap: var(--space-2);
 		}
-	}
-
-	// Server-side validation message. The left rule and the alert role carry it as
-	// well as the colour does.
-	.form-error {
-		margin: 0 0 var(--space-4);
-		padding: var(--space-3) var(--space-4);
-		border: 1px solid color-mix(in oklab, var(--neg) 40%, transparent);
-		border-left: 3px solid var(--neg);
-		border-radius: var(--radius-md);
-		background: var(--neg-soft);
-		color: var(--text-primary);
-		font-size: var(--text-sm);
 	}
 </style>

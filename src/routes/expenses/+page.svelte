@@ -559,7 +559,7 @@
 		</div>
 	{:else}
 		<div class="table-scroll" use:scrollable={'Expenses table'}>
-		<table class="table">
+		<table class="table table--dense">
 			<caption class="visually-hidden">
 				{data.expenses.length} expenses, newest first. Each row can be selected for bulk tagging,
 				and rows with notes or a linked fund withdrawal can be expanded for detail.
@@ -761,11 +761,14 @@
 			color: var(--text-primary);
 		}
 
+		// min-inline-size: 0, as in FilterBar: at `auto` the group can't shrink below the
+		// picker's one-line summary of ticked categories, which runs past a phone screen.
 		&__group {
 			display: flex;
 			flex-wrap: wrap;
 			align-items: center;
 			gap: var(--space-2);
+			min-inline-size: 0;
 		}
 
 		&__picker {
@@ -830,7 +833,7 @@
 
 		&__value {
 			margin: 0;
-			font-size: var(--text-sm);
+			font-size: var(--text-base);
 		}
 
 		&__muted {
@@ -855,28 +858,18 @@
 	.duplicate-hint {
 		margin: 0 0 var(--space-4);
 		color: var(--text-secondary);
-		font-size: var(--text-sm);
-	}
-
-	.form-error {
-		margin: 0 0 var(--space-4);
-		padding: var(--space-3) var(--space-4);
-		border: 1px solid color-mix(in oklab, var(--neg) 40%, transparent);
-		border-left: 3px solid var(--neg);
-		border-radius: var(--radius-md);
-		background: var(--neg-soft);
-		color: var(--text-primary);
-		font-size: var(--text-sm);
+		font-size: var(--text-base);
 	}
 
 	.page-header__actions {
 		display: flex;
+		flex-wrap: wrap;
 		gap: var(--space-2);
 	}
 
 	.import-hint {
 		margin: 0 0 var(--space-4);
-		font-size: var(--text-sm);
+		font-size: var(--text-base);
 		color: var(--text-secondary);
 
 		code {
@@ -892,7 +885,7 @@
 
 	.import-status {
 		margin: 0 0 var(--space-4);
-		font-size: var(--text-sm);
+		font-size: var(--text-base);
 		color: var(--text-secondary);
 	}
 
@@ -929,7 +922,7 @@
 		&__list {
 			margin: 0;
 			padding-left: var(--space-5);
-			font-size: var(--text-sm);
+			font-size: var(--text-base);
 			color: var(--text-secondary);
 
 			li {
